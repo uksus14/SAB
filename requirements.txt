@@ -1,0 +1,6 @@
+flask
+requests
+pyspellchecker
+beautifulsoup4
+user-agent-parser
+googletrans

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/">
+  <ShortName>SAB</ShortName>
+  <Description>Smart Address Bar with custom suggestion behaviour</Description>
+  <InputEncoding>UTF-8</InputEncoding>
+  <Image height="16" width="16" type="image/x-icon">http://127.0.0.1:5000/favicon.ico</Image>
+  <Url type="text/html" method="get" template="http://127.0.0.1:5000/?q={searchTerms}"/>
+  <Url type="application/x-suggestions+json" template="http://127.0.0.1:5000/suggest?q={searchTerms}"/>
+</OpenSearchDescription>
