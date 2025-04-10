@@ -1,6 +1,10 @@
 from flask import Flask, request, jsonify, redirect
 from user_agent_parser import Parser as UAParser
 from datetime import timedelta, datetime
+from sympy.parsing.sympy_parser import (
+    parse_expr,
+    standard_transformations, 
+    implicit_multiplication)
 from spellchecker import SpellChecker
 from urllib.parse import urlencode
 from googletrans import Translator
@@ -9,6 +13,7 @@ from itertools import product
 spell_checker = SpellChecker()
 from random import randint
 translator = Translator()
+from math import *
 import requests
 import asyncio
 import json
@@ -64,7 +69,19 @@ def search():
         query = translit(query[::-1], ru_en)
     if query.endswith("~"):
         query = translit(query[::-1], en_ru)
-    return redirect(f"https://unduck.link?{urlencode({"q": query})}")
+    replace = {"y": "youtube", "wa": "walpha", "w": "wiki"}
+    qmplus = "https://qmplus.qmul.ac.uk/course/view.php?id="
+    codes = {"math": 26196,
+              "success": 24587,
+              "chem": 24589,
+              "phys": 24591,
+              "engin": 24595,
+              "furth": 24583}
+    for old, new in replace.items():
+        query = query.replace(f"!{old}", f"!@{new}")
+    if query.strip() in qmplus:
+        return redirect(qmplus+codes[query.strip()])
+    return redirect(f"https://unduck.link?{urlencode({"q": query.replace("!@", "!")})}")
 @app.route("/favicon.ico")
 def favicon():
     return app.send_static_file("favicon.ico")
@@ -75,14 +92,10 @@ def opensearch():
 def suggest():
     orig = request.args.get("q", "")
     query = orig.strip()
-    if query == "sab":
-        data = ["The key to strategy is not to choose a path to victory", "But to choose so that all paths lead to victory"]
     if query.endswith("Ё"):
         query = translit(query[::-1], ru_en)
     if query.endswith("~"):
         query = translit(query[::-1], en_ru)
-    if query == "weather":
-        data = weather()
     elif query.endswith("."):
         data = []
     elif query.endswith("="): data = evalpy(query[:-1])
@@ -90,6 +103,8 @@ def suggest():
     elif query.endswith(" !s"): data = spell(query[:-3])
     elif query.endswith(" !d"): data = dictionary(query[:-3])
     elif query.endswith(" !ud"): data = udictionary(query[:-4])
+    elif query == "weather": data = weather()
+    elif query == "sab": data = ["The key to strategy is not to choose a path to victory", "But to choose so that all paths lead to victory"]
     else: data = autocomplete(query)
     data = data[:page_size(request)+1]
     return jsonify([orig, data])
@@ -216,17 +231,14 @@ def udictionary(query):
     return [df.find("div", class_="meaning").text for df in soup.find_all("div", class_="definition")] or ["no meaning found"]
 
 def evalpy(query):
+    from sympy import simplify, cos, sin
     error = False
     try: res = f"{eval(query)}"
-    except (SyntaxError, TypeError):
-        error = True
-        for _ in range(len(query)-1):
-            query = query[:-1]
-            try:
-                res = f"{eval(query)}"
-                break
-            except (SyntaxError, TypeError): res = "not computable"
-    return [f"{query*error} = {res}"]
+    except:
+        try:
+            res = parse_expr(query, transformations=standard_transformations + (implicit_multiplication,))
+        except: res = "not computable"
+    return [f"= {res}"]
 
 if __name__ == '__main__':
     app.run(debug=True)
