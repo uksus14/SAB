@@ -1,0 +1,14 @@
+{% extends 'blank.html' %}
+{% block title %}Deleting {{group}}{% endblock %}
+{% block message %}Are you sure you want to delete {{group}} group?{% endblock %}
+{% block main %}
+<button class="btn" onclick="action()">Yes</button>
+{% endblock %}
+{% block script %}
+function action(){
+    fetch("{{url}}")
+        .then(res =>
+            res.ok ? alert("{{succ_message}}") : alert("something went wrong!")
+        )
+}
+{% endblock %}

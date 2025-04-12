@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, redirect
+from flask import Flask, request, jsonify, redirect, render_template
 from user_agent_parser import Parser as UAParser
 from datetime import timedelta, datetime
 from sympy.parsing.sympy_parser import (
@@ -50,12 +50,22 @@ def bad_weather_hours(data):
 
 with open("./freqs.json", "r") as f:
     freqs = json.loads(f.read())
-with open("./tab_groups.json", "a") as f: pass
-with open("./tab_groups.json", "r") as f: groups: dict[str, dict[str, float]] = f.read()
-if not groups:
-    with open("./tab_groups.json", "w") as f: f.write("{}")
-    groups = {}
-else: groups = json.loads(groups)
+def create_if(path, default):    
+    with open(path, "a") as f: pass
+    with open(path, "r") as f: data: dict[str, dict[str, float]] = f.read()
+    if not data:
+        with open(path, "w") as f: f.write(json.dumps(default))
+        data = default
+    else: data = json.loads(data)
+    return data
+groups: dict[str, dict[str, float]] = create_if("./tab_groups.json", {})
+def update_groups():
+    with open("./tab_groups.json", "w") as f: f.write(json.dumps(groups))
+
+history: list[dict[str, str|float]] = sorted(create_if("./history.json", []), key=lambda q:q["time"])
+def update_history():
+    with open("./history.json", "w") as f: f.write(json.dumps(history))
+
 
 
 russian = "ё\"№;%:?йцукенгшщзхъфывапролджэячсмитьбю"
@@ -86,17 +96,24 @@ def cacher(func):
         return response
     return wrapper
 
-courier = 'font-family: "Courier Prime", monospace;font-weight: 400;font-style: normal'
 @cacher
-def format_url(url: str, time: float):
-    title = BeautifulSoup(requests.get("https://"+url).text, features="html.parser").title.string
-    time = datetime.fromtimestamp(time)
-    return f"<span style='{courier};margin-right:10px'>{time.strftime("%d-%m-%Y, %H:%M")}</span><b>{title}</b> — <i>{url}</i>"
+def get_title(url):
+    return BeautifulSoup(requests.get("https://"+url).text, features="html.parser").title.string
+
+def format_time(time: float):
+    return datetime.fromtimestamp(time).strftime("%d-%m-%Y, %H:%M")
+
+def normalize_url(url):
+    if url.startswith("https://"): url = url[8:]
+    if url.startswith("www."): url = url[4:]
+    return url
 
 def manage_groups(query: str):
+    if not query.strip():
+        return render_template("groups.html", group_sign=grouper(), groups=groups)
+    message = lambda m:render_template("message.html", message=m)
     group, *url = query.split()
-    url = " ".join(url).strip()
-    if url.startswith("https://www."): url = url[12:]
+    url = normalize_url(" ".join(url).strip())
     redirect = True
     if group.endswith("?"):
         group = group[:-1]
@@ -107,39 +124,40 @@ def manage_groups(query: str):
     if group.endswith("-"):
         group = group[:-1]
         if group not in groups:
-            return "<h1>No such group exists!</h1>"
+            return message("No such group exists!")
         if url in groups[group]:
             groups[group].pop(url)
-            return "<h1>Url removed from the group!</h1>"
+            return message("Url removed from the group!")
         if url:
-            return "<h1>Url not found in the group!</h1>"
-        return f"<h1>Are you sure you want to delete {group} group?</h1><br><button style='width: 250px;height: 100px' onclick='fetch(`/?q=/{group}-%23force`).then(res => res.ok ? alert(`group {group} deleted`) : alert(`something went wrong!`))'>Yes</button>"
+            return message("Url not found in the group!")
+        return render_template("button.html", url="?q="+grouper(f"{group}-%23force"), succ_message=f"group {group} deleted")
     if group in groups:
         if url:
             if url not in groups[group]:
                 groups[group][url] = datetime.now().timestamp()
-                return "<h1>Url added!</h1>"
-            return "<h1>Url already in the group!</h1>"
+                return message("Url added!")
+            return message("Url already in the group!")
         if not groups[group]:
-            return "<h1>No urls to open!</h1>"
-        return "<!DOCTYPE html><html><body><h1>"+redirect*"Openn"+(1-redirect)*"Show"+f"""ing urls in the <span style='{courier}'>{group}</span> group:</h1><br><ul><li>{"</li><li>".join([format_url(url, time) for url, time in groups[group].items()])}</li></ul>""" + \
-            redirect * f"""<script>window.onload = () => {{window.open(`https://{"`, `_blank`);window.open(`https://".join(groups[group])}`, `_blank`);}};</script>""" + "</body></html>"
+            return message("No urls to open!")
+        return render_template("group.html", redirect=redirect, group=group, pages=[{"time": format_time(time), "title": get_title(url), "url": url} for url, time in groups[group].items()])
     groups[group] = {}
     if url: groups[group][url] = datetime.now().timestamp()
-    return "<h1>Group created!</h1>"
+    return message("Group created!")
 
 app = Flask(__name__)
 @app.route('/')
 def search():
-    query = request.args.get("q")
-    if query.startswith("/"):
+    query = request.args.get("q").strip()
+    if query.startswith("/" if chrome(request) else "\\"):
         res = manage_groups(query[1:])
-        with open("./tab_groups.json", "w") as f: f.write(json.dumps(groups))
+        update_groups()
         return res
     if query.endswith("Ё"):
         query = translit(query[:-1], ru_en)
     if query.endswith("~"):
         query = translit(query[:-1], en_ru)
+    if query.endswith(" !h") or query == "!h":
+        return render_template("history.html", history=match_history(query[:-3]), query=len(query)>3)
     replace = {"y": "youtube", "wa": "walpha", "w": "wiki"}
     codes = {"math": 26196,
               "success": 24587,
@@ -149,9 +167,12 @@ def search():
               "furth": 24583}
     for old, new in replace.items():
         query = query.replace(f"!{old}", f"!@{new}")
+    query = query.replace("!@", "!")
     if query.strip() in codes:
         return redirect(f"https://qmplus.qmul.ac.uk/course/view.php?id={codes[query.strip()]}")
-    return redirect(f"https://unduck.link?{urlencode({"q": query.replace("!@", "!")})}")
+    history.append({"query": query, "time": datetime.now().timestamp()})
+    update_history()
+    return redirect(f"https://unduck.link?{urlencode({"q": query})}")
 @app.route("/favicon.ico")
 def favicon():
     return app.send_static_file("favicon.ico")
@@ -161,35 +182,40 @@ def opensearch():
 
 variables = {}
 
-def pager(bang="", prefix=""):
+def pager(context):
     def outer(func):
         def inner(query, **kwargs):
             page = len(query) - len(query.rstrip("-"))
             query = query.rstrip("-").strip()
             data = func(query, **kwargs)
-            return pagify(data, query, page, f'{kwargs.get("head", prefix)}{{}} {kwargs.get("tail", bang)}')
+            return pagify(data, query, page, kwargs.get("context", context) or context)
         return inner
     return outer
 
-@pager(prefix="/")
+def chrome(request): return UAParser(request.headers.get('User-Agent'))()[0] == "Chrome"
+
+def grouper(t=""): return ("/" if chrome(request) else "\\")+str(t)
+
+@pager(grouper)
 def suggest_groups(query):
+    query = query.strip()
+    print(query)
     if query:
-        url = query[1:]
-        if url.startswith("https://www."): url = url[12:]
+        url = normalize_url(query[1:])
         appear = [f"Url appears in {group}" for group, urls in groups.items() if url in urls]
         if appear: return appear
         group, *url = query.split()
-        url = " ".join(url).strip()
-        if url.startswith("https://www."): url = url[12:]
+        url = normalize_url(" ".join(url).strip())
         if group in groups:
-            return [f"/{query} {url}" for url in groups[group].keys()]
-    return [f"/{group}" for group in groups.keys()]
+            return [grouper(f"{query} {url}") for url in groups[group].keys()]
+    print([grouper(group) for group in groups.keys()])
+    return [grouper(group) for group in groups.keys()]
 
 @app.route('/suggest')
 def suggest():
     orig = request.args.get("q", "")
     query = orig.strip()
-    if query.startswith("/"):
+    if query.startswith("/" if chrome(request) else "\\"):
         return jsonify([orig, suggest_groups(query[1:])])
     if query.endswith("Ё"):
         query = translit(query[:-1], ru_en).strip()
@@ -200,6 +226,7 @@ def suggest():
     elif query.endswith("==="): data = assign(query[:-3])
     elif query.endswith("=="): data = symppy(query[:-2])
     elif query.endswith("="): data = evalpy(query[:-1])
+    elif query.endswith(" !h") or query == "!h": data = [q["query"] for q in match_history(query[:-3])]
     elif query.endswith(" !t"): data = translate(query[:-3])
     elif query.endswith(" !s"): data = spell(query[:-3])
     elif query.endswith(" !d"): data = dictionary(query[:-3])
@@ -209,6 +236,9 @@ def suggest():
     else: data = autocomplete(query)
     data = data[:page_size(request)+1]
     return jsonify([orig, data])
+
+def match_history(query):
+    return [{"time": format_time(q["time"]), "query": q["query"]} for q in history if query in q["query"]]
 
 def weather():
     decode_weather = {51: "Light drizzle", 53: "Moderate drizzle", 55: "Dense drizzle", 56: "Light freezing Drizzle", 57: "Dense freezing drizzle", 61: "Slight rain", 63: "Moderate rain", 65: "Heavy rain", 66: "Light freezing rain", 67: "Heavy freezing Rain", 71: "Slight snowfall", 73: "Moderate snowfall", 75: "Heavy snowfall", 77: "Snow grains", 80: "Slight rain showers", 81: "Moderate rain showers", 82: "Violent rain showers", 85: "Slight snow showers", 86: "Heavy snow showers"}
@@ -240,7 +270,7 @@ def weather():
         days_text.append(day)
     current_weekday = datetime.now().weekday()
     weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    return [f"Temperature : {current} °C"]+[f"Temperature range for {weekdays[current_weekday+i]}: {days_text[i]}" for i in range(len(days_text))]
+    return [f"Temperature : {current} °C"]+[f"Temperature range for {weekdays[(current_weekday+i)%7]}: {days_text[i]}" for i in range(len(days_text))]
 
 @cacher
 def autocomplete(query):
@@ -255,7 +285,7 @@ def translate(query):
     return [loop.run_until_complete(translator.translate(query, src=langs[ru], dest=langs[not ru])).text]
 
 def page_size(request):
-    if UAParser(request.headers.get('User-Agent'))()[0] == "Chrome":
+    if chrome(request):
         return 2
     else: return 4
 
@@ -263,15 +293,18 @@ def pagify(data, query, page, context):
     p_size = page_size(request)
     last = len(data) <= (page+1)*p_size+1
     if last: return data[page*p_size:]
-    next_page = context.format(f"{query}-{'-'*page}")
+    next_page = context(f"{query}-{'-'*page}")
     return data[page*p_size:(page+1)*p_size] + [next_page]
-    
-@pager("!s")
+
+def bang(code): return lambda t:f"{t} !{code}"
+
+@pager(bang("s"))
 @cacher
-def spell(query, tail="!s"):
+def spell(query, context=None):
     cands = [spell_checker.candidates(word) or [word] for word in query.split()]
     data = sorted(product(*cands), key=lambda sugg:-sum(map(lambda w:freqs.get(w, 0), sugg)))
-    return [" ".join(line)+(f" {tail}"*(tail != "!s")) for line in data]
+    if context is None: context = lambda t:t
+    return [context(" ".join(line)) for line in data]
 
 @cacher
 def define(term: str):
@@ -283,7 +316,7 @@ def define(term: str):
             res.extend([{"part": meaning["partOfSpeech"], "definition": df["definition"]} for df in meaning["definitions"]])
     return res
 
-@pager("!d")
+@pager(bang("d"))
 @cacher
 def dictionary(query):
     *words, part = query.split()
@@ -294,14 +327,14 @@ def dictionary(query):
     else: part = None
     data = define(query)
     if data is None:
-        res = spell(query, tail="!d")
+        res = spell(query, context=bang("d"))
         if len(res) == 1 and res[0] == query+" !d":
             return ["no meaning found"]
         return res
     if part is not None: data = [entry for entry in data if entry["part"]==part]
     return [f'{query} — {entry["part"]}, {entry["definition"]}' for entry in data]
 
-@pager("!ud")
+@pager(bang("ud"))
 @cacher
 def udictionary(query):
     soup = BeautifulSoup(requests.get(f"https://www.urbandictionary.com/define.php?term={query}").text, features="html.parser")

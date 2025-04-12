@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Auto Timer</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding-top: 10%;
+      background: #111;
+      color: white;
+    }
+    h1 {
+      font-size: 3em;
+      margin-bottom: 0.2em;
+    }
+    #timer {
+      font-size: 5em;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1 id="title">Timer</h1>
+  <div id="timer">Loading...</div>
+  <audio id="beep" src="https://actions.google.com/sounds/v1/alarms/kitchen_timer.ogg" preload="auto"></audio>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const minutes = parseInt(params.get("minutes")) || 0;
+    const seconds = parseInt(params.get("seconds")) || 0;
+    const title = params.get("title") || "Timer";
+
+    document.getElementById("title").textContent = title;
+
+    let totalSeconds = minutes * 60 + seconds;
+    const display = document.getElementById("timer");
+    const beep = document.getElementById("beep");
+
+    function updateTimer() {
+      const mins = Math.floor(totalSeconds / 60);
+      const secs = totalSeconds % 60;
+      display.textContent = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+
+      if (totalSeconds <= 0) {
+        clearInterval(timerInterval);
+        beep.play();
+        display.textContent = "Time's up!";
+      } else {
+        totalSeconds--;
+      }
+    }
+
+    updateTimer(); // show initial time immediately
+    const timerInterval = setInterval(updateTimer, 1000);
+  </script>
+</body>
+</html>

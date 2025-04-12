@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{% endblock %}</title>
+    <style>
+        .courier{
+            font-family: "Courier Prime", monospace;
+            font-weight: 400;
+            font-style: normal;
+        }
+        .right-pad{
+            margin-right: 10px;
+        }
+        .btn{
+            width: 250px;
+            height: 100px
+        }
+        ul{
+            list-style-type: none;
+        }
+        li{
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>{% block message %}{% endblock %}</h1>
+    {% block main %}{% endblock %}
+    <script>
+        {% block script %}{% endblock %}
+    </script>
+</body>
+</html>
