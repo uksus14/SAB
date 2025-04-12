@@ -6,7 +6,7 @@ from sympy.parsing.sympy_parser import (
     standard_transformations, 
     implicit_multiplication)
 from spellchecker import SpellChecker
-from urllib.parse import urlencode
+from urllib.parse import urljoin, quote
 from googletrans import Translator
 from random import randint, random
 from bs4 import BeautifulSoup
@@ -17,6 +17,7 @@ import requests
 import asyncio
 import json
 import math
+import re
 
 asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 loop = asyncio.new_event_loop()
@@ -50,6 +51,13 @@ def bad_weather_hours(data):
 
 with open("./freqs.json", "r") as f:
     freqs = json.loads(f.read())
+with open("./bangs.json", "r", encoding="utf-8") as f:
+    bangs: dict[str, str] = json.loads(f.read())
+def bangs_url(query):
+    r = re.search(r"!(\S+)", query)
+    a = "!g"
+    if r: a = r.group().lower()
+    return bangs.get(a[1:], bangs["g"]).format(q=quote(re.sub(r'!\S+\s*', '', query).strip()))
 def create_if(path, default):    
     with open(path, "a") as f: pass
     with open(path, "r") as f: data: dict[str, dict[str, float]] = f.read()
@@ -144,11 +152,13 @@ def manage_groups(query: str):
     if url: groups[group][url] = datetime.now().timestamp()
     return message("Group created!")
 
+timer_regex = r"^(?P<timer>timer|таймер)( (?P<title>.+?))?(?P<words>(( (?P<hour>\d+)( ?h| (hours?|час(а|(ов))?)))|( (?P<min>\d+)( ?m| (min(ute)?s?|мин(ута|уты)?)))|( (?P<sec>\d+)( ?s| (sec(ond)?s?|сек(унда|унды)?)))){1,3})$"
+
 app = Flask(__name__)
 @app.route('/')
 def search():
     query = request.args.get("q").strip()
-    if query.startswith("/" if chrome(request) else "\\"):
+    if query.startswith("/" if chrome() else "\\"):
         res = manage_groups(query[1:])
         update_groups()
         return res
@@ -157,22 +167,24 @@ def search():
     if query.endswith("~"):
         query = translit(query[:-1], en_ru)
     if query.endswith(" !h") or query == "!h":
-        return render_template("history.html", history=match_history(query[:-3]), query=len(query)>3)
-    replace = {"y": "youtube", "wa": "walpha", "w": "wiki"}
+        return render_template("history.html", history=match_history(query[:-3]), query=query[:-3], isquery=len(query)>3)
+    m = re.match(timer_regex, query)
+    if m is not None:
+        return render_template("timer.html", chrome=chrome(), **m.groupdict())
     codes = {"math": 26196,
               "success": 24587,
               "chem": 24589,
               "phys": 24591,
               "engin": 24595,
               "furth": 24583}
-    for old, new in replace.items():
-        query = query.replace(f"!{old}", f"!@{new}")
-    query = query.replace("!@", "!")
-    if query.strip() in codes:
-        return redirect(f"https://qmplus.qmul.ac.uk/course/view.php?id={codes[query.strip()]}")
+    qmplus = lambda code: f"https://qmplus.qmul.ac.uk/course/view.php?id={code}"
+    if query in codes: return redirect(qmplus(codes[query.strip()]))
+    if translit(query, ru_en) in codes: return redirect(qmplus(codes[translit(query, ru_en)]))
+    if translit(query, en_ru) in codes: return redirect(qmplus(codes[translit(query, en_ru)]))
     history.append({"query": query, "time": datetime.now().timestamp()})
     update_history()
-    return redirect(f"https://unduck.link?{urlencode({"q": query})}")
+    return redirect(bangs_url(query))
+
 @app.route("/favicon.ico")
 def favicon():
     return app.send_static_file("favicon.ico")
@@ -192,9 +204,9 @@ def pager(context):
         return inner
     return outer
 
-def chrome(request): return UAParser(request.headers.get('User-Agent'))()[0] == "Chrome"
+def chrome(): return UAParser(request.headers.get('User-Agent'))()[0] == "Chrome"
 
-def grouper(t=""): return ("/" if chrome(request) else "\\")+str(t)
+def grouper(t=""): return ("/" if chrome() else "\\")+str(t)
 
 @pager(grouper)
 def suggest_groups(query):
@@ -215,7 +227,7 @@ def suggest_groups(query):
 def suggest():
     orig = request.args.get("q", "")
     query = orig.strip()
-    if query.startswith("/" if chrome(request) else "\\"):
+    if query.startswith("/" if chrome() else "\\"):
         return jsonify([orig, suggest_groups(query[1:])])
     if query.endswith("Ё"):
         query = translit(query[:-1], ru_en).strip()
@@ -231,10 +243,10 @@ def suggest():
     elif query.endswith(" !s"): data = spell(query[:-3])
     elif query.endswith(" !d"): data = dictionary(query[:-3])
     elif query.endswith(" !ud"): data = udictionary(query[:-4])
-    elif query == "weather": data = weather()
+    elif "weather" in [query, translit(query, en_ru), translit(query, ru_en)]: data = weather()
     elif query == "sab": data = ["The key to strategy is not to choose a path to victory", "But to choose so that all paths lead to victory"]
     else: data = autocomplete(query)
-    data = data[:page_size(request)+1]
+    data = data[:page_size()+1]
     return jsonify([orig, data])
 
 def match_history(query):
@@ -258,7 +270,7 @@ def weather():
     data = response.json()
     current = data['current_weather']['temperature']
     days_text = []
-    for i in range(page_size(request)):
+    for i in range(page_size()):
         day_max = data['daily']['apparent_temperature_max'][i]
         day_min = data['daily']['apparent_temperature_min'][i]
         day = f"{day_min} °C - {day_max} °C"
@@ -284,13 +296,13 @@ def translate(query):
     ru = query[0] in russian
     return [loop.run_until_complete(translator.translate(query, src=langs[ru], dest=langs[not ru])).text]
 
-def page_size(request):
-    if chrome(request):
+def page_size():
+    if chrome():
         return 2
     else: return 4
 
 def pagify(data, query, page, context):
-    p_size = page_size(request)
+    p_size = page_size()
     last = len(data) <= (page+1)*p_size+1
     if last: return data[page*p_size:]
     next_page = context(f"{query}-{'-'*page}")

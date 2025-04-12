@@ -1,60 +1,67 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Auto Timer</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      padding-top: 10%;
-      background: #111;
-      color: white;
+{% extends 'blank.html' %}
+{% block title %}Timer{% endblock %}
+{% block style %}
+body {
+  font-family: sans-serif;
+  text-align: center;
+  padding-top: 10%;
+  background: #111;
+  color: white;
+}
+#timer {
+  font-size: 5em;
+  font-weight: bold;
+}
+#soundUnlock{
+  border-radius: 10px;
+  background-color: #333;
+  color: white;
+}
+{% endblock %}
+{% block message %}Timer{% endblock %}15.63+14.88+10.62+10.68+9.95
+{% block main %}
+<div id="timer">Loading...</div>
+{{'<button id="soundUnlock" class="btn">Enable Sound for Alarm</button>' if chrome}}
+<audio id="beep" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+{% endblock %}
+{% block script %}
+  const title = "{{title or ''}} {{timer}}";
+
+  document.getElementById("title").textContent = title + " {{'for' if timer == 'timer' else 'на'}}{{words}}";
+
+  let totalSeconds = {{60*60*(hour|int or 0)+60*(min|int or 0)+(sec|int or 0)}};
+  const display = document.getElementById("timer");
+  const beep = document.getElementById("beep");
+  let format = num => String(num).padStart(2, "0")
+  function updateTimer() {
+    const hours = Math.floor(totalSeconds / 60 / 60);
+    const mins = Math.floor(totalSeconds / 60) % 60;
+    const secs = totalSeconds % 60;
+    display.textContent = `${format(mins)}:${format(secs)}`;
+    if(hours)display.textContent = format(hours)+":"+display.textContent;
+    
+    if (totalSeconds <= 0) {
+      clearInterval(timerInterval);
+      beep.play();
+      display.textContent = "Time's up!";
+    } else {
+      totalSeconds--;
     }
-    h1 {
-      font-size: 3em;
-      margin-bottom: 0.2em;
-    }
-    #timer {
-      font-size: 5em;
-      font-weight: bold;
-    }
-  </style>
-</head>
-<body>
-  <h1 id="title">Timer</h1>
-  <div id="timer">Loading...</div>
-  <audio id="beep" src="https://actions.google.com/sounds/v1/alarms/kitchen_timer.ogg" preload="auto"></audio>
+  }
+  {% if chrome %}
+  const unlockButton = document.getElementById("soundUnlock");
+  unlockButton.addEventListener("click", () => {
+    beep.play().then(() => {
+      beep.pause();
+      beep.currentTime = 0;
+      unlockButton.style.display = "none";
+    }).catch(() => {
+      unlockButton.disabled = true;
+      unlockButton.textContent = "Sound error!";
+    });
+  });
+  {% endif %}
 
-  <script>
-    const params = new URLSearchParams(window.location.search);
-    const minutes = parseInt(params.get("minutes")) || 0;
-    const seconds = parseInt(params.get("seconds")) || 0;
-    const title = params.get("title") || "Timer";
-
-    document.getElementById("title").textContent = title;
-
-    let totalSeconds = minutes * 60 + seconds;
-    const display = document.getElementById("timer");
-    const beep = document.getElementById("beep");
-
-    function updateTimer() {
-      const mins = Math.floor(totalSeconds / 60);
-      const secs = totalSeconds % 60;
-      display.textContent = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-
-      if (totalSeconds <= 0) {
-        clearInterval(timerInterval);
-        beep.play();
-        display.textContent = "Time's up!";
-      } else {
-        totalSeconds--;
-      }
-    }
-
-    updateTimer(); // show initial time immediately
-    const timerInterval = setInterval(updateTimer, 1000);
-  </script>
-</body>
-</html>
+  updateTimer(); // show initial time immediately
+  const timerInterval = setInterval(updateTimer, 1000);
+{% endblock %}

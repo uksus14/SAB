@@ -1,11 +1,11 @@
 {% extends 'blank.html' %}
-{% block title %}History{% if query %} matching {{query}}{% endif %}{% endblock %}
-{% block message %}History:{% endblock %}
+{% block title %}History{{' matching '+query if isquery}}{% endblock %}
+{% block message %}History{{' matching '+query if isquery}}{% endblock %}
 {% block main %}
 <ul>
-    {% for query in history %}
+    {% for line in history %}
         <li>
-            <span class='courier right-pad'>{{query.time}}</span>{{query.query}}
+            <span class='courier right-pad'>{{line.time}}</span>{{line.query}}
         </li>
     {% endfor %}
 </ul>
