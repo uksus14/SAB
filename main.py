@@ -74,6 +74,17 @@ history: list[dict[str, str|float]] = sorted(create_if("./history.json", []), ke
 def update_history():
     with open("./history.json", "w") as f: f.write(json.dumps(history))
 
+caches: dict[str, dict[str, dict[str, list|dict|int]]] = create_if("./caches.json", {})
+def update_caches(cache, time: float):
+    for query in cache:
+        if time < (datetime.now().timestamp() - cache[query]["time"]):
+            cache.pop(query)
+    with open("./caches.json", "w") as f: f.write(json.dumps(caches))
+
+with open("./benchmarks.json", "w") as f: f.write(json.dumps([]))
+benchmarks: list[list[str|float]] = []
+def update_benchmarks():
+    with open("./benchmarks.json", "w") as f: f.write(json.dumps(benchmarks))
 
 
 russian = "ё\"№;%:?йцукенгшщзхъфывапролджэячсмитьбю"
@@ -91,20 +102,32 @@ def translit(text, d):
     return ans
 
 
-def cacher(func):
-    cache = {}
-    def wrapper(query, *args, **kwargs):
-        query = query.strip()
-        if not query: return [] 
-        if query in cache:
-            if timedelta(days=1) > (datetime.now() - cache[query]["time"]):
-                return cache[query]["response"]
-        response = func(query, *args, **kwargs)
-        cache[query] = {"response": response, "time": datetime.now()}
-        return response
+def cacher(func_or_time: timedelta):
+    def outer(func):
+        caches[func.__name__] = {}
+        cache = caches[func.__name__]
+        def inner(query, *args, **kwargs):
+            query = query.strip()
+            if not query: return [] 
+            now = datetime.now().timestamp()
+            if query in cache:
+                if time > (now - cache[query]["time"]):
+                    return cache[query]["response"]
+            response = func(query, *args, **kwargs)
+            cache[query] = {"response": response, "time": now}
+            update_caches(cache, time)
+            return response
+        return inner
+    time = timedelta(days=1)
+    if isinstance(func_or_time, timedelta):
+        time = func_or_time
+        wrapper = outer
+    else:
+        wrapper = outer(func_or_time)
+    time = time.total_seconds()
     return wrapper
 
-@cacher
+@cacher(timedelta(days=30))
 def get_title(url):
     return BeautifulSoup(requests.get("https://"+url).text, features="html.parser").title.string
 
@@ -154,10 +177,23 @@ def manage_groups(query: str):
 
 timer_regex = r"^(?P<timer>timer|таймер)( (?P<title>.+?))?(?P<words>(( (?P<hour>\d+)( ?h| (hours?|час(а|(ов))?)))|( (?P<min>\d+)( ?m| (min(ute)?s?|мин(ута|уты)?)))|( (?P<sec>\d+)( ?s| (sec(ond)?s?|сек(унда|унды)?)))){1,3})$"
 
+def benchmark(func):
+    def wrapper():
+        # global benchmarks
+        # start = datetime.now()
+        query = request.args.get("q", "")
+        res = func(query)
+        # benchmarks.append([func.__name__, query, (datetime.now() - start).total_seconds()])
+        # benchmarks = benchmarks[-1000:]
+        # update_benchmarks()
+        return res
+    return wrapper
+
 app = Flask(__name__)
-@app.route('/')
-def search():
-    query = request.args.get("q").strip()
+
+@benchmark
+def _search(query):
+    query = query.strip()
     if query.startswith("/" if chrome() else "\\"):
         res = manage_groups(query[1:])
         update_groups()
@@ -184,6 +220,9 @@ def search():
     history.append({"query": query, "time": datetime.now().timestamp()})
     update_history()
     return redirect(bangs_url(query))
+@app.route('/')
+def search():
+    return _search()
 
 @app.route("/favicon.ico")
 def favicon():
@@ -223,9 +262,9 @@ def suggest_groups(query):
     print([grouper(group) for group in groups.keys()])
     return [grouper(group) for group in groups.keys()]
 
-@app.route('/suggest')
-def suggest():
-    orig = request.args.get("q", "")
+
+@benchmark
+def _suggest(orig: str):
     query = orig.strip()
     if query.startswith("/" if chrome() else "\\"):
         return jsonify([orig, suggest_groups(query[1:])])
@@ -243,16 +282,20 @@ def suggest():
     elif query.endswith(" !s"): data = spell(query[:-3])
     elif query.endswith(" !d"): data = dictionary(query[:-3])
     elif query.endswith(" !ud"): data = udictionary(query[:-4])
-    elif "weather" in [query, translit(query, en_ru), translit(query, ru_en)]: data = weather()
+    elif "weather" in [query, translit(query, en_ru), translit(query, ru_en)]: data = weather(query)
     elif query == "sab": data = ["The key to strategy is not to choose a path to victory", "But to choose so that all paths lead to victory"]
     else: data = autocomplete(query)
     data = data[:page_size()+1]
     return jsonify([orig, data])
+@app.route('/suggest')
+def suggest():
+    return _suggest()
 
 def match_history(query):
     return [{"time": format_time(q["time"]), "query": q["query"]} for q in history if query in q["query"]]
 
-def weather():
+@cacher(timedelta(minutes=5))
+def weather(query):
     decode_weather = {51: "Light drizzle", 53: "Moderate drizzle", 55: "Dense drizzle", 56: "Light freezing Drizzle", 57: "Dense freezing drizzle", 61: "Slight rain", 63: "Moderate rain", 65: "Heavy rain", 66: "Light freezing rain", 67: "Heavy freezing Rain", 71: "Slight snowfall", 73: "Moderate snowfall", 75: "Heavy snowfall", 77: "Snow grains", 80: "Slight rain showers", 81: "Moderate rain showers", 82: "Violent rain showers", 85: "Slight snow showers", 86: "Heavy snow showers"}
     response = requests.get("https://ipinfo.io/json")
     data = response.json()
@@ -318,7 +361,7 @@ def spell(query, context=None):
     if context is None: context = lambda t:t
     return [context(" ".join(line)) for line in data]
 
-@cacher
+@cacher(timedelta(days=30))
 def define(term: str):
     data = requests.get(f"https://api.dictionaryapi.dev/api/v2/entries/en/{term}").json()
     if isinstance(data, dict): return None
@@ -347,7 +390,7 @@ def dictionary(query):
     return [f'{query} — {entry["part"]}, {entry["definition"]}' for entry in data]
 
 @pager(bang("ud"))
-@cacher
+@cacher(timedelta(days=7))
 def udictionary(query):
     soup = BeautifulSoup(requests.get(f"https://www.urbandictionary.com/define.php?term={query}").text, features="html.parser")
     return [df.find("div", class_="meaning").text for df in soup.find_all("div", class_="definition")] or ["no meaning found"]
@@ -376,4 +419,4 @@ def evalpy(query):
     return [res]
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)

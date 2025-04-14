@@ -18,10 +18,12 @@ body {
   color: white;
 }
 {% endblock %}
-{% block message %}Timer{% endblock %}15.63+14.88+10.62+10.68+9.95
+{% block message %}Timer{% endblock %}
 {% block main %}
 <div id="timer">Loading...</div>
-{{'<button id="soundUnlock" class="btn">Enable Sound for Alarm</button>' if chrome}}
+{% if chrome %}
+<button id="soundUnlock" class="btn">Enable Sound for Alarm</button>
+{% endif %}
 <audio id="beep" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 {% endblock %}
 {% block script %}

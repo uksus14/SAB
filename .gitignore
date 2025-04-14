@@ -2,3 +2,5 @@ env
 sympy
 tab_groups.json
 history.json
+benchmarks.json
+caches.json

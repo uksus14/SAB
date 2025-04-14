@@ -1,7 +1,7 @@
 {% extends 'blank.html' %}
 {% block title %}{{group}} group{% endblock %}
-{% block main %}
 {% block message %}{{'Openn' if redirect else 'Show'}}ing urls in the <span class='courier'>{{group}}</span> group:{% endblock %}
+{% block main %}
 <ul>
     {% for page in pages %}
         <li>
@@ -9,13 +9,15 @@
         </li>
     {% endfor %}
 </ul>
-{{'<button class="btn" onclick="open_all()">Open All</button>' if not redirect}}
-<script>
-    function open_all(){
-        {% for page in pages %}
-        window.open("https://{{page.url}}", "_blank");
-        {% endfor %}
-    }
-    {{'open_all()' if redirect}}
-</script>
+{% if not redirect %}
+<button class="btn" onclick="open_all()">Open All</button>
+{% endif %}
 {% endblock %}
+{% block script %}
+function open_all(){
+    {% for page in pages %}
+    window.open("https://{{page.url}}", "_blank");
+    {% endfor %}
+}
+{{'open_all()' if redirect}}
+{% endblock%}
