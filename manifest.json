@@ -3,7 +3,7 @@
     "name": "SAB",
     "version": "1.0",
     "description": "Smart Address Bar",
-    "permissions": ["searchProvider"],
+    "permissions": [],
     "chrome_settings_overrides": {
       "search_provider": {
         "name": "SAB",
