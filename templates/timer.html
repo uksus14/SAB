@@ -22,34 +22,35 @@ body {
 {% block main %}
 <div id="timer">Loading...</div>
 {% if chrome %}
-<button id="soundUnlock" class="btn">Enable Sound for Alarm</button>
+<button id="soundUnlock" autofocus class="btn">Enable Sound for Alarm</button>
 {% endif %}
 <audio id="beep" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 {% endblock %}
 {% block script %}
-  const title = "{{title or ''}} {{timer}}";
-
-  document.getElementById("title").textContent = title + " {{'for' if timer == 'timer' else 'на'}}{{words}}";
-
-  let totalSeconds = {{60*60*(hour|int or 0)+60*(min|int or 0)+(sec|int or 0)}};
+  const title = "{% if title %}{{title}} {% endif %}{{timer}}";
   const display = document.getElementById("timer");
+  document.getElementById("title").textContent = title + " {{'for' if timer == 'timer' else 'на'}}{{words}}";
+  let totalSeconds = {{total_secs}};
+  const format = num => String(num).padStart(2, "0");
   const beep = document.getElementById("beep");
-  let format = num => String(num).padStart(2, "0")
+  const endTime = Date.now() + totalSeconds * 1000;
   function updateTimer() {
-    const hours = Math.floor(totalSeconds / 60 / 60);
-    const mins = Math.floor(totalSeconds / 60) % 60;
-    const secs = totalSeconds % 60;
+    const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+    const hours = Math.floor(remaining / 60 / 60);
+    const mins = Math.floor(remaining / 60) % 60;
+    const secs = remaining % 60;
     display.textContent = `${format(mins)}:${format(secs)}`;
     if(hours)display.textContent = format(hours)+":"+display.textContent;
-    
-    if (totalSeconds <= 0) {
-      clearInterval(timerInterval);
-      beep.play();
-      display.textContent = "Time's up!";
-    } else {
-      totalSeconds--;
-    }
+    document.title = `Timer for ${display.textContent}`
+    if (remaining > 0) totalSeconds--;
   }
+  setTimeout(() => {
+    clearInterval(timerInterval);
+    beep.play();
+    display.textContent = "Time's up!";
+    document.title = "Time's up!";
+    alert("Time's up!")
+  }, totalSeconds * 1000)
   {% if chrome %}
   const unlockButton = document.getElementById("soundUnlock");
   unlockButton.addEventListener("click", () => {
@@ -65,5 +66,5 @@ body {
   {% endif %}
 
   updateTimer(); // show initial time immediately
-  const timerInterval = setInterval(updateTimer, 1000);
+  const timerInterval = setInterval(updateTimer, 300);
 {% endblock %}

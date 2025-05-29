@@ -1,3 +1,4 @@
 env
 sympy
 variables/*
+openai_key.txt

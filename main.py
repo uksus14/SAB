@@ -1,25 +1,38 @@
 from flask import Flask, request, jsonify, redirect, render_template, Response
 from user_agent_parser import Parser as UAParser
+from currency_converter import CurrencyConverter, RateNotFoundError
+from access_limit import AccessLimit
+from typing import Callable, TypeVar, Any
 from datetime import timedelta, datetime
 from sympy.parsing.sympy_parser import (
     parse_expr,
     standard_transformations, 
     implicit_multiplication)
 from spellchecker import SpellChecker
-from urllib.parse import quote
-from typing import Callable, TypeVar, Any
 from googletrans import Translator
 from random import randint, random
+from urllib.parse import quote
+from codes import URLCode, CurrencyCode, is_same_keys, translit, en_ru, ru_en
+convert = CurrencyConverter()
 from bs4 import BeautifulSoup
 from itertools import product
 spell_checker = SpellChecker()
 translator = Translator()
+from pathlib import Path
+import regex as re
 import requests
 import asyncio
+import openai
 import json
 import math
 import sys
-import re
+
+BASE_FOLDER = Path(__file__).parent
+try:
+    openai.api_key = (BASE_FOLDER / "openai_key.txt").read_text().strip()
+except FileNotFoundError:
+    print("OpenAI key file not found")
+    AccessLimit.disable["llmask"] = "OpenAI key not found"
 
 asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 loop = asyncio.new_event_loop()
@@ -56,13 +69,18 @@ def cool_random(l=None, r=None) -> int|float:
     if r is None: return randint(1, l)
     return randint(l, r)
 
+def get_current_kgs() -> float:
+    url = "https://wise.com/ru/currency-converter/usd-to-kgs-rate?amount=1"
+    soup = BeautifulSoup(requests.get(url).text, features="html.parser")
+    return float(soup.find(id="target-input")["value"].replace(",", ".", count=1))
+
 with open("./constants/freqs.json", "r") as f:
     freqs = json.loads(f.read())
 with open("./constants/bangs.json", "r", encoding="utf-8") as f:
     bangs: dict[str, str] = json.loads(f.read())
 def bangs_url(query: str) -> str:
     r = re.search(r"!(\S+)", query)
-    a = "!g"
+    a = "!gwoai"
     if r: a = r.group().lower()
     return bangs.get(a[1:], bangs["g"]).format(q=quote(re.sub(r'!\S+\s*', '', query).strip()))
 T = TypeVar("T")
@@ -75,13 +93,19 @@ def create_variable(file: str, default: T) -> tuple[T, Callable[[], None]]:
         data = default
     else: data = json.loads(data)
     def update(d=data):
-        with open(path, "w") as f: f.write(json.dumps(data))
+        with open(path, "w") as f: f.write(json.dumps(d))
     return data, update
 groups, update_groups = create_variable("tab_groups", {})
 groups: dict[str, dict[str, float]]
 
 history, update_history = create_variable("history", [])
 history: list[dict[str, str|float]]
+
+usd_to_kgs, update_usd_to_kgs = create_variable("usd_to_kgs", [])
+usd_to_kgs: list[list[float]]
+now = datetime.now()
+if now.day != datetime.fromtimestamp(usd_to_kgs[-1][0]).day:
+    usd_to_kgs.append([now.timestamp(), get_current_kgs()])
 
 places, update_places = create_variable("places", {})
 places: dict[str, tuple[float, float]]
@@ -100,7 +124,7 @@ class DimentionsNumber(float):
     def __str__(self):
         return f"{self.num} {self.dim}"
 
-variables_str, update_variables = create_variable("variables", [])
+variables_str, _ = create_variable("variables", [])
 variables_str: list[tuple[str, str]] = [tuple(pair) for pair in variables_str]
 variables: dict[str, Any] = {}
 def evalpy_normalize(script: str) -> str:
@@ -124,7 +148,7 @@ def add_variable(name: str, script: str) -> bool:
 for name, script in variables_str:
     script = evalpy_normalize(script)
     try: res = eval(script, **eval_context())
-    except: raise Exception("There is a problem with variables!")
+    except: raise Exception(f"There is a problem with variables! check {script}")
     variables[name] = res
 with open("./variables/variables.json", "w") as f: f.write(json.dumps(variables_str))
     
@@ -132,28 +156,13 @@ with open("./variables/variables.json", "w") as f: f.write(json.dumps(variables_
 caches, update_caches = create_variable("caches", {})
 caches: dict[str, dict[str, dict[str, list|dict|int]]]
 def update_cache(cache: dict[str, dict[str, float|list[str]]], time: float):
-    for query in cache:
+    for query in list(cache.keys()):
         if time < (datetime.now().timestamp() - cache[query]["time"]):
             cache.pop(query)
     update_caches()
 
 benchmarks, update_benchmarks = create_variable("benchmarks", [])
 benchmarks: list[list[str|float]]
-
-
-russian = "ё\"№;%:?йцукенгшщзхъфывапролджэячсмитьбю"
-english = "`@#$%^&qwertyuiop[]asdfghjkl;'zxcvbnm,."
-ru_en = {r: e for r, e in zip(russian, english)}
-en_ru = {e: r for e, r in zip(english, russian)}
-def translit(text: str, d: dict[str, str]) -> str:
-    ans = ""
-    prev = ""
-    for l in text.lower():
-        if l in d and prev != '!':
-            ans+=d[l]
-        else: ans+=l
-        prev = l
-    return ans
 
 R = TypeVar("R")
 def cacher(func_or_time: timedelta) -> Callable[[Callable[[str], R]], Callable[[str], R]]:
@@ -248,35 +257,31 @@ def benchmark(func: Callable[[], Response]) -> Callable[[], Response]:
     return wrapper
 
 app = Flask(__name__)
-
-def all_ways(text: str) -> list[str]:
-    return [text, translit(text, en_ru), translit(text, ru_en)]
-def in_ways(keys: list[str], ways: list[str]) -> str|None:
-    for key in keys:
-        if key in ways: return key
-    return None
-
-codes = {"math": "https://qmplus.qmul.ac.uk/course/view.php?id=26196",
-        ("succ", "success"): "https://qmplus.qmul.ac.uk/course/view.php?id=24587",
-        "chem": "https://qmplus.qmul.ac.uk/course/view.php?id=24589",
-        "phys": "https://qmplus.qmul.ac.uk/course/view.php?id=24591",
-        "engin": "https://qmplus.qmul.ac.uk/course/view.php?id=24595",
-        "furth": "https://qmplus.qmul.ac.uk/course/view.php?id=24583",
-        ("ppt", "slides", "powerpoint"): "https://docs.google.com/presentation/",
-        ("excel", "sheets"): "https://docs.google.com/spreadsheets/",
-        ("word", "docs"): "https://docs.google.com/document/",
-        ("translate", "!t", "translator", "переводчик"): "https://translate.google.com/?hl=en&sl=auto&tl=en&op=translate"}
-tmp = {}
-for code in codes:
-    if isinstance(code, tuple):
-        for cd in code: tmp[cd] = codes[code]
-    else: tmp[code] = codes[code]
-codes = tmp
+bang_keys = sorted(bangs.keys())
+add_variable("bang_to_check", f"({variables.get('bang_to_check', -1) - variables.get("deleted", 0)})")
+add_variable("deleted", "(0)")
 
 @app.route('/')
 def search() -> Response:
-    query = request.args.get("q", "")
-    query = query.strip()
+    query = request.args.get("q", "").strip()
+    if query.startswith("refine"):
+        if query.startswith("refine replace "):
+            bangs[bang_keys[variables["bang_to_check"]]] = query[15:].strip()
+            with open("./constants/bangs.json", "w", encoding="utf-8") as f:
+                f.write(json.dumps(bangs))
+        else:
+            add_variable("bang_to_check", f"({variables['bang_to_check']+1})")
+            if query.endswith('<'):
+                add_variable("bang_to_check", f"({variables['bang_to_check']-1-(not variables["deleted"])})")
+            if query.endswith('-'):
+                add_variable("deleted", f"({variables["deleted"]+1})")
+                bangs.pop(bang_keys[variables["bang_to_check"]-1])
+                with open("./constants/bangs.json", "w", encoding="utf-8") as f:
+                    f.write(json.dumps(bangs))
+        print(f"{100*variables["bang_to_check"]/len(bang_keys):.2f}%, {bang_keys[variables['bang_to_check']]}", flush=True)
+        return redirect(bangs[bang_keys[variables["bang_to_check"]]].format(q=bang_keys[variables["bang_to_check"]]))
+    if query.startswith("https://") or query.startswith("www."):
+        return redirect(query)
     if query.startswith("/" if chrome() else "\\"):
         res = manage_groups(query[1:])
         update_groups()
@@ -289,20 +294,21 @@ def search() -> Response:
         return render_template("history.html", history=match_history(query[:-3]), query=query[:-3], isquery=len(query)>3)
     m = re.match(timer_regex, query)
     if m is not None:
-        return render_template("timer.html", chrome=chrome(), **m.groupdict())
+        m = m.groupdict()
+        total_secs = (xifNone(m["hour"])*60+xifNone(m["min"]))*60+xifNone(m["sec"])
+        return render_template("timer.html", chrome=chrome(), total_secs=total_secs, **m)
     history.append({"query": query, "time": datetime.now().timestamp()})
     update_history()
-    ways = all_ways(query)
-    code = in_ways(codes.keys(), ways)
-    if code: return redirect(codes[code])
+    url = URLCode.resolve(query)
+    if url: return redirect(url)
     return redirect(bangs_url(query))
 
-@app.route("/favicon.ico")
-def favicon() -> Response:
-    return app.send_static_file("favicon.ico")
-@app.route("/opensearch.xml")
-def opensearch() -> Response:
-    return app.send_static_file("opensearch.xml")
+
+@app.route(f"/opensearch.xml")
+def opensearch() -> Response: return app.send_static_file("opensearch.xml")
+@app.route("/menu")
+def menu() -> Response:
+    return render_template('menu.html', pages=URLCode.menu_data())
 
 def pager(context: Callable[[str], str]) -> Callable[[Callable[[str], list[str]]], Callable[[str], list[str]]]:
     def outer(func: Callable[[str], list[str]]) -> Callable[[str], list[str]]:
@@ -330,9 +336,91 @@ def suggest_groups(query: str) -> list[str]:
         if group in groups:
             return [grouper(f"{query} {url}") for url in groups[group].keys()]
     return [grouper(group) for group in groups.keys()]
+
+def updates():
+    now = datetime.now()
+    if now.day != datetime.fromtimestamp(usd_to_kgs[-1][0]).day:
+        usd_to_kgs.append((now.timestamp(), get_current_kgs()))
+    update_usd_to_kgs()
+
+def closest_kgs_date(date: datetime|None) -> float:
+    if date is None: return usd_to_kgs[-1][1]
+    comp = (date.timestamp(), 0)
+    l, r = None, None
+    for course in [tuple(pair) for pair in usd_to_kgs]:
+        if comp < course:
+            r = course
+            break
+        l = course
+    if not l: return r[1]
+    if not r: return l[1]
+    if r[0]+l[0] > 2*comp[0]:
+        return l[1]
+    return r[1]
+
+@cacher
+def currency(query: str, data: dict[str, str]):
+    now = datetime.now()
+    number = float(data["number"])
+    fro = data["from"].lower()
+    fro = CurrencyCode.resolve(fro) or fro
+    to = data["to"]
+    if to is None: to = variables["default_currency"]
+    print(to, flush=True)
+    to = CurrencyCode.resolve(to.lower()) or to.lower()
+    date = None
+    day = data["day"]
+    month = data["month"]
+    year = data["year"]
+    if day is not None:
+        day, month = int(day), int(month)
+        if year:
+            year = int(year)
+            if year < 100:
+                if year > (now.year % 100):
+                    year += 1900
+                else: year += 2000
+        elif month < now.month or (month == now.month and day <= now.day): year = now.year
+        else: year = now.year-1
+        date = datetime(year, month, day)
+    tto = to
+    if to == "kgs":
+        to = "usd"
+        number *= closest_kgs_date(date)
+    if fro == "kgs":
+        fro = "usd"
+        number /= closest_kgs_date(date)
+    try: res = convert.convert(number, fro.upper(), to.upper(), date)
+    except RateNotFoundError: res = convert.convert(number, fro.upper(), to.upper())
+    return [f"= {res:.2f} {tto}"]
+def xifNone(d: Any|None, x: Any=0)->Any:
+    a = d if d is not None else x
+    return int(a) if isinstance(a, str) and a.isdigit() else a
+@cacher(timedelta(days=30))
+def to_feet(query: str, data: dict[str, str]):
+    inches = xifNone(data["inches"])+xifNone(data["inches_only"])
+    mod, to = 30.48, xifNone(data["to"], "cm")
+    if to == "m": mod /= 100
+    return [f"= {(xifNone(data["feet"])+inches/12) * mod:.2f} {to}"]
+@cacher(timedelta(days=30))
+def to_cm(query: str, data: dict[str, str]):
+    if data["fro"] == "cm": cm = float(data["cm_or_m"])
+    elif data["fro"] == "m": cm = float(data["cm_or_m"])*100
+    inches = cm/2.54
+    foot = "foot" if inches//12 == 1 else "feet"
+    return ["= " + bool(inches//12) * f"{int(inches//12)} {foot} " + (inches%12 > .5) * f"{inches%12:.2f} inches"]
+
+rs = [(r"^((?P<feet>\d+) f(oo|ee)t( (?P<inches>\d+)( inch(es)?)?)?|(?P<inches_only>\d+) inch(es)?)( to (?P<to>m|cm))?$", to_feet),
+      (r"^(?P<cm_or_m>\d+\.?(\d+)?) (?P<fro>cm|m) to feet$", to_cm),
+      (r"^(?P<number>\d+\.?(\d+)?) (?P<from>\p{L}+) (to|к|в) (?P<to>\p{L}+)(( at)? (?P<day>\d{1,2})(-|/|\.)(?P<month>\d{1,2})((-|/|\.)(?P<year>(\d{2}){1,2}))?)?$", currency),
+]
+rs: list[tuple[str, Callable[[str, dict[str, str]], list[str]]]]
+
+def ends_with(query, *ends: str) -> bool: return any(query.endswith(end) for end in ends)
 @app.route('/suggest')
 def suggest() -> Response:
-    orig = request.args.get("q", "")
+    updates()
+    orig: str = request.args.get("q", "")
     query = orig.strip()
     if query.startswith("/" if chrome() else "\\"):
         return jsonify([orig, suggest_groups(query[1:])])
@@ -340,25 +428,53 @@ def suggest() -> Response:
         query = translit(query[:-1], ru_en).strip()
     if query.endswith("~"):
         query = translit(query[:-1], en_ru).strip()
-    ways = all_ways(query.lower())
-    if query.endswith("."):
-        data = []
-    elif query.endswith("==="): data = assign(query[:-3])
-    elif query.endswith("=="): data = symppy(query[:-2])
-    elif query.endswith("="): data = evalpy(query[:-1])
-    elif query.endswith(" !h") or query == "!h": data = [q["query"] for q in match_history(query[:-3])]
-    elif query.endswith(" !t"): data = translate(query[:-3])
-    elif query.endswith(" !s"): data = spell(query[:-3])
-    elif query.endswith(" !ud"): data = udictionary(query[:-4])
-    elif query.endswith(" !d") or query.endswith(" meaning"): data = dictionary(" ".join(query.split()[:-1]))
-    elif in_ways(["weather"]+[f"weather {place}" for place in places], ways): data = weather(query[8:])
-    elif in_ways(["ppt", "slides", "powerpoint"], ways): data = ["https://docs.google.com/presentation/"]
-    elif in_ways(["excel"], ways): data = ["https://docs.google.com/spreadsheets/"]
-    elif in_ways(["word", "docs"], ways): data = ["https://docs.google.com/document/"]
+    data = None
+    if ends_with(query, "."): data = []
+    elif ends_with(query, "==="): data = assign(query[:-3])
+    elif ends_with(query, "=="): data = symppy(query[:-2])
+    elif ends_with(query, "="): data = evalpy(query[:-1])
+    elif ends_with(query, " !h", "!h"): data = [q["query"] for q in match_history(query[:-3])]
+    elif ends_with(query, " !t", " перевод"): data = translate(query[:-3])
+    elif ends_with(query, " !s"): data = spell(query[:-3])
+    elif ends_with(query, " !ud"): data = udictionary(query[:-4])
+    elif ends_with(query, " !d", " meaning"): data = dictionary(" ".join(query.split()[:-1]))
+    elif ends_with(query, " !abbr", " abbr", " abbreviation"): data = abbreviate(" ".join(query.split()[:-1]))
+    elif ends_with(query, "!!?"): data = llmask(query[:-3])
+    elif is_same_keys(query, ["weather"]+[f"weather {place}" for place in places]): data = weather(query[8:])
     elif query == "sab": data = ["The key to strategy is not to choose a path to victory", "But to choose so that all paths lead to victory"]
-    else: data = autocomplete(query)
+    else:
+        for r, sugg in rs:
+            match = re.match(r, query)
+            if match: break
+        if match: data = sugg(query, match.groupdict())
+    if data is None: data = autocomplete(query)
     data = data[:page_size()+1]
     return jsonify([orig, data])
+
+@AccessLimit(max_count=50, period=timedelta(days=1), min_time=timedelta(seconds=3))
+@cacher
+def llmask(query: str) -> list[str]:
+    prep = "You are a helpful assistant. Respond with a very short factual answer, ideally one phrase or a few words"
+    query = query.strip()+"?"
+    response = openai.chat.completions.create(
+        model="gpt-4.1-nano",
+        messages=[{"role": "user", "content": prep}, {"role": "user", "content": query}],
+        temperature=0.1,
+        max_tokens=100,
+    )
+    return [response.choices[0].message.content.strip()]
+
+@pager(lambda t: f"{t} !abbr")
+@cacher
+def abbreviate(query: str) -> list[str]:
+    query = query.strip()
+    if not query: return ["Please provide a word to abbreviate"]
+    soup = BeautifulSoup(requests.get(f"https://www.acronymfinder.com/{query}.html").text, "html.parser")
+    results = soup.find("table", class_="result-list")
+    if not results:
+        return ["No results found."]
+    results = results.find("tbody").find_all("td", class_="result-list__body__meaning")
+    return [result.text for result in results]
 
 def match_history(query: str) -> list[dict[str, str]]:
     return [{"time": format_time(q["time"]), "query": q["query"]} for q in history if query in q["query"]]
@@ -373,8 +489,7 @@ with open("./constants/weather_codes.json", "r") as f:
     decode_weather = {int(code): desc for code, desc in json.loads(f.read()).items()}
 @cacher(timedelta(minutes=5))
 def weather(query: str) -> list[str]:
-    place = in_ways(places.keys(), all_ways(query.strip()))
-    sys.stdout.flush()
+    place = is_same_keys(query, places.keys())
     if place: lat, lon = places[place]
     elif query: return [f"Place {query} not found"]
     else: lat, lon = get_current_coords()
@@ -398,7 +513,6 @@ def weather(query: str) -> list[str]:
         day = f"{day_min} °C - {day_max} °C"
         day_weather = data['daily']['weather_code'][i]
         if day_weather > 50:
-            print(data['hourly'])
             rain_start, rain_end = bad_weather_hours(data["hourly"]["weather_code"][i*24:(i+1)*24])
             day_rain_chance = data['daily']['precipitation_probability_mean'][i]
             day += f", {decode_weather[day_weather]}, rain chance: {day_rain_chance}% from hours {rain_start} to {rain_end}"
@@ -409,14 +523,14 @@ def weather(query: str) -> list[str]:
 
 @cacher
 def autocomplete(query) -> list[str]:
-    url = f"https://suggestqueries.google.com/complete/search?client=chrome&q={query}"
+    url = f"https://suggestqueries.google.com/complete/search?client=chrome&q={quote(query)}"
     return requests.get(url).json()[1]
 
 @cacher
-def translate(query) -> list[str]:
+def translate(query: str) -> list[str]:
     query = query.rstrip("-").strip()
     langs = ['en', 'ru']
-    ru = query[0] in russian
+    ru = query[0].lower() in "йцукенгшщзхъфывапролджэячсмитьбю"
     return [loop.run_until_complete(translator.translate(query, src=langs[ru], dest=langs[not ru])).text]
 
 def page_size() -> int:
