@@ -87,13 +87,13 @@ T = TypeVar("T")
 def create_variable(file: str, default: T) -> tuple[T, Callable[[], None]]:
     path = f"./variables/{file}.json"
     with open(path, "a") as f: pass
-    with open(path, "r") as f: data: dict[str, dict[str, float]] = f.read()
+    with open(path, "r", encoding="utf-8") as f: data: dict[str, dict[str, float]] = f.read()
     if not data:
-        with open(path, "w") as f: f.write(json.dumps(default))
+        with open(path, "w", encoding="utf-8") as f: f.write(json.dumps(default))
         data = default
     else: data = json.loads(data)
     def update(d=data):
-        with open(path, "w") as f: f.write(json.dumps(d))
+        with open(path, "w", encoding="utf-8") as f: f.write(json.dumps(d))
     return data, update
 groups, update_groups = create_variable("tab_groups", {})
 groups: dict[str, dict[str, float]]
@@ -143,49 +143,40 @@ def add_variable(name: str, script: str) -> bool:
     prev = dict(variables_str).get(name, None)
     if prev: variables_str.remove((name, prev))
     variables_str.append((name, script))
-    with open("./variables/variables.json", "w") as f: f.write(json.dumps(variables_str))
+    with open("./variables/variables.json", "w", encoding="utf-8") as f: f.write(json.dumps(variables_str))
     return False
 for name, script in variables_str:
     script = evalpy_normalize(script)
     try: res = eval(script, **eval_context())
     except: raise Exception(f"There is a problem with variables! check {script}")
     variables[name] = res
-with open("./variables/variables.json", "w") as f: f.write(json.dumps(variables_str))
+with open("./variables/variables.json", "w", encoding="utf-8") as f: f.write(json.dumps(variables_str))
     
-
-caches, update_caches = create_variable("caches", {})
-caches: dict[str, dict[str, dict[str, list|dict|int]]]
-def update_cache(cache: dict[str, dict[str, float|list[str]]], time: float):
-    for query in list(cache.keys()):
-        if time < (datetime.now().timestamp() - cache[query]["time"]):
-            cache.pop(query)
-    update_caches()
 
 benchmarks, update_benchmarks = create_variable("benchmarks", [])
 benchmarks: list[list[str|float]]
 
 R = TypeVar("R")
+caches: dict[str, dict[str, dict[str, list|int]]] = {}
 def cacher(func_or_time: timedelta) -> Callable[[Callable[[str], R]], Callable[[str], R]]:
     def outer(func: Callable[[str], R]) -> Callable[[str], R]:
-        caches[func.__name__] = {}
-        cache = caches[func.__name__]
+        cache = caches[func.__name__] = {}
         def inner(query: str, *args, **kwargs) -> R:
             query = query.strip()
             now = datetime.now().timestamp()
-            if query in cache:
-                if time > (now - cache[query]["time"]):
-                    return cache[query]["response"]
+            if query in cache and time > (now - cache[query]["time"]):
+                return cache[query]["response"]
             response = func(query, *args, **kwargs)
             cache[query] = {"response": response, "time": now}
-            update_cache(cache, time)
+            for query in list(cache.keys()):
+                if time < (now - cache[query]["time"]): cache.pop(query)
             return response
+        inner.__name__ = func.__name__
         return inner
     time = timedelta(days=1)
-    if isinstance(func_or_time, timedelta):
-        time = func_or_time
-        wrapper = outer
-    else:
-        wrapper = outer(func_or_time)
+    wrapper = outer
+    if isinstance(func_or_time, timedelta): time = func_or_time
+    else: wrapper = outer(func_or_time)
     time = time.total_seconds()
     return wrapper
 

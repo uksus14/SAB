@@ -16,7 +16,7 @@ class AccessLimit:
     def accesses(self) -> list[datetime]:
         now = datetime.now()
         self._accesses = [access for access in self._accesses if now - access < self.period]
-        if not self._accesses: return [now]
+        if not self._accesses: return [now - self.period]
         return self._accesses
     def access(self): self._accesses.append(datetime.now())
     def setfunc(self, funcname: str):
