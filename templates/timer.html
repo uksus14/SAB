@@ -21,7 +21,7 @@ body {
 {% block message %}Timer{% endblock %}
 {% block main %}
 <div id="timer">Loading...</div>
-{% if chrome %}
+{% if ischrome %}
 <button id="soundUnlock" autofocus class="btn">Enable Sound for Alarm</button>
 {% endif %}
 <audio id="beep" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>

@@ -9,8 +9,7 @@ asyncio.set_event_loop(loop)
 russian = "йцукенгшщзхъфывапролджэячсмитьбю"
 english = "qwertyuiopasdfghjklzxcvbnm"
 
-def translate(call: str, query: str=None) -> list[str]:
-    if query is None: return None
+def translate(call: str, query: str) -> list[str]:
     query = query.rstrip("-").strip()
     langs = ['en', 'ru']
     is_ru = next((letter for letter in query.lower() if letter in russian+english), ' ') in russian

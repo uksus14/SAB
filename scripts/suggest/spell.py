@@ -3,8 +3,7 @@ from itertools import product
 from constants import freqs
 spell_checker = SpellChecker()
 
-def spell(call: str, query: str=None) -> list[str]:
-    if query is None: return None
+def spell(call: str, query: str) -> list[str]:
     cands = [spell_checker.candidates(word) or [word] for word in query.split()]
     data = sorted(product(*cands), key=lambda sugg:sum(map(lambda w:freqs.get(w, 0), sugg)), reverse=True)
     if len(data) == 1: return "words not recognized"

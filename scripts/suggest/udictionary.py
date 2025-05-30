@@ -1,8 +1,7 @@
 from bs4 import BeautifulSoup
 import requests
 
-def udictionary(call: str, query: str=None) -> list[str]:
-    if query is None: return None
+def udictionary(call: str, query: str) -> list[str]:
     soup = BeautifulSoup(requests.get(f"https://www.urbandictionary.com/define.php?term={query}").text, features="html.parser")
     return [df.find("div", class_="meaning").text for df in soup.find_all("div", class_="definition")] or ["no meaning found"]
 

@@ -14,5 +14,6 @@ class Pager:
             page = len(call) - len(stripped)
             call = stripped.strip()
             data = func(call, **kwargs)
+            if not isinstance(data, list): return data
             return pagify(data, call, page)
         return inner

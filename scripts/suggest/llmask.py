@@ -1,7 +1,6 @@
 import openai
 
-def llmask(call: str, query: str=None) -> list[str]:
-    if query is None: return None
+def llmask(call: str, query: str) -> list[str]:
     prep = "You are a helpful assistant. Respond with a very short factual answer, ideally one phrase or a few words"
     query = query.strip()+"?"
     response = openai.chat.completions.create(
