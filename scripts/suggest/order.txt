@@ -1,0 +1,11 @@
+sab
+clear
+udictionary
+llmask
+abbreviate
+feet_to_cm
+simplify
+dictionary
+spell
+translate
+autocomplete

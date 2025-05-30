@@ -1,23 +1,20 @@
 from flask import Flask, request, jsonify, redirect, render_template, Response
-from user_agent_parser import Parser as UAParser
 from currency_converter import CurrencyConverter, RateNotFoundError
-from access_limit import AccessLimit
+from scripts.suggest.groups import get_title
+from scripts.suggest import SuggestionList
 from typing import Callable, TypeVar, Any
 from datetime import timedelta, datetime
 from sympy.parsing.sympy_parser import (
     parse_expr,
     standard_transformations, 
     implicit_multiplication)
-from spellchecker import SpellChecker
-from googletrans import Translator
 from random import randint, random
+from scripts.actions import Action
 from urllib.parse import quote
-from codes import URLCode, CurrencyCode, is_same_keys, translit, en_ru, ru_en
+from scripts.utils import ischrome, page_size
+from scripts.codes import URLCode, CurrencyCode, same_keys_find, translit, en_ru, ru_en
 convert = CurrencyConverter()
 from bs4 import BeautifulSoup
-from itertools import product
-spell_checker = SpellChecker()
-translator = Translator()
 from pathlib import Path
 import regex as re
 import requests
@@ -28,11 +25,10 @@ import math
 import sys
 
 BASE_FOLDER = Path(__file__).parent
-try:
-    openai.api_key = (BASE_FOLDER / "openai_key.txt").read_text().strip()
+try: openai.api_key = (BASE_FOLDER / "openai_key.txt").read_text().strip()
 except FileNotFoundError:
     print("OpenAI key file not found")
-    AccessLimit.disable["llmask"] = "OpenAI key not found"
+    Action.disable["llmask"] = "OpenAI key not found"
 
 asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 loop = asyncio.new_event_loop()
@@ -104,7 +100,7 @@ history: list[dict[str, str|float]]
 usd_to_kgs, update_usd_to_kgs = create_variable("usd_to_kgs", [])
 usd_to_kgs: list[list[float]]
 now = datetime.now()
-if now.day != datetime.fromtimestamp(usd_to_kgs[-1][0]).day:
+if len(usd_to_kgs) == 0 or now.day != datetime.fromtimestamp(usd_to_kgs[-1][0]).day:
     usd_to_kgs.append([now.timestamp(), get_current_kgs()])
 
 places, update_places = create_variable("places", {})
@@ -179,10 +175,6 @@ def cacher(func_or_time: timedelta) -> Callable[[Callable[[str], R]], Callable[[
     else: wrapper = outer(func_or_time)
     time = time.total_seconds()
     return wrapper
-
-@cacher(timedelta(days=30))
-def get_title(url: str) -> str:
-    return BeautifulSoup(requests.get("https://"+url).text, features="html.parser").title.string
 
 def format_time(time: float) -> str:
     return datetime.fromtimestamp(time).strftime("%d-%m-%Y, %H:%M")
@@ -273,7 +265,7 @@ def search() -> Response:
         return redirect(bangs[bang_keys[variables["bang_to_check"]]].format(q=bang_keys[variables["bang_to_check"]]))
     if query.startswith("https://") or query.startswith("www."):
         return redirect(query)
-    if query.startswith("/" if chrome() else "\\"):
+    if query.startswith("/" if ischrome() else "\\"):
         res = manage_groups(query[1:])
         update_groups()
         return res
@@ -287,7 +279,7 @@ def search() -> Response:
     if m is not None:
         m = m.groupdict()
         total_secs = (xifNone(m["hour"])*60+xifNone(m["min"]))*60+xifNone(m["sec"])
-        return render_template("timer.html", chrome=chrome(), total_secs=total_secs, **m)
+        return render_template("timer.html", ischrome=ischrome(), total_secs=total_secs, **m)
     history.append({"query": query, "time": datetime.now().timestamp()})
     update_history()
     url = URLCode.resolve(query)
@@ -311,9 +303,7 @@ def pager(context: Callable[[str], str]) -> Callable[[Callable[[str], list[str]]
         return inner
     return outer
 
-def chrome() -> bool: return UAParser(request.headers.get('User-Agent'))()[0] == "Chrome"
-
-def grouper(t: str="") -> str: return ("/" if chrome() else "\\")+str(t)
+def grouper(t: str="") -> str: return ("/" if ischrome() else "\\")+str(t)
 
 @pager(grouper)
 def suggest_groups(query: str) -> list[str]:
@@ -413,59 +403,27 @@ def suggest() -> Response:
     updates()
     orig: str = request.args.get("q", "")
     query = orig.strip()
-    if query.startswith("/" if chrome() else "\\"):
+    if query.startswith("/" if ischrome() else "\\"):
         return jsonify([orig, suggest_groups(query[1:])])
     if query.endswith("Ё"):
         query = translit(query[:-1], ru_en).strip()
     if query.endswith("~"):
         query = translit(query[:-1], en_ru).strip()
     data = None
-    if ends_with(query, "."): data = []
-    elif ends_with(query, "==="): data = assign(query[:-3])
+    if ends_with(query, "==="): data = assign(query[:-3])
     elif ends_with(query, "=="): data = symppy(query[:-2])
     elif ends_with(query, "="): data = evalpy(query[:-1])
     elif ends_with(query, " !h", "!h"): data = [q["query"] for q in match_history(query[:-3])]
-    elif ends_with(query, " !t", " перевод"): data = translate(query[:-3])
-    elif ends_with(query, " !s"): data = spell(query[:-3])
-    elif ends_with(query, " !ud"): data = udictionary(query[:-4])
-    elif ends_with(query, " !d", " meaning"): data = dictionary(" ".join(query.split()[:-1]))
-    elif ends_with(query, " !abbr", " abbr", " abbreviation"): data = abbreviate(" ".join(query.split()[:-1]))
-    elif ends_with(query, "!!?"): data = llmask(query[:-3])
-    elif is_same_keys(query, ["weather"]+[f"weather {place}" for place in places]): data = weather(query[8:])
-    elif query == "sab": data = ["The key to strategy is not to choose a path to victory", "But to choose so that all paths lead to victory"]
+    elif same_keys_find(query, ["weather"]+[f"weather {place}" for place in places]): data = weather(query[8:])
     else:
         for r, sugg in rs:
             match = re.match(r, query)
             if match: break
         if match: data = sugg(query, match.groupdict())
-    if data is None: data = autocomplete(query)
+    if data is None:
+        data = SuggestionList()(orig)
     data = data[:page_size()+1]
     return jsonify([orig, data])
-
-@AccessLimit(max_count=50, period=timedelta(days=1), min_time=timedelta(seconds=3))
-@cacher
-def llmask(query: str) -> list[str]:
-    prep = "You are a helpful assistant. Respond with a very short factual answer, ideally one phrase or a few words"
-    query = query.strip()+"?"
-    response = openai.chat.completions.create(
-        model="gpt-4.1-nano",
-        messages=[{"role": "user", "content": prep}, {"role": "user", "content": query}],
-        temperature=0.1,
-        max_tokens=100,
-    )
-    return [response.choices[0].message.content.strip()]
-
-@pager(lambda t: f"{t} !abbr")
-@cacher
-def abbreviate(query: str) -> list[str]:
-    query = query.strip()
-    if not query: return ["Please provide a word to abbreviate"]
-    soup = BeautifulSoup(requests.get(f"https://www.acronymfinder.com/{query}.html").text, "html.parser")
-    results = soup.find("table", class_="result-list")
-    if not results:
-        return ["No results found."]
-    results = results.find("tbody").find_all("td", class_="result-list__body__meaning")
-    return [result.text for result in results]
 
 def match_history(query: str) -> list[dict[str, str]]:
     return [{"time": format_time(q["time"]), "query": q["query"]} for q in history if query in q["query"]]
@@ -480,7 +438,7 @@ with open("./constants/weather_codes.json", "r") as f:
     decode_weather = {int(code): desc for code, desc in json.loads(f.read()).items()}
 @cacher(timedelta(minutes=5))
 def weather(query: str) -> list[str]:
-    place = is_same_keys(query, places.keys())
+    place = same_keys_find(query, places.keys())
     if place: lat, lon = places[place]
     elif query: return [f"Place {query} not found"]
     else: lat, lon = get_current_coords()
@@ -512,23 +470,6 @@ def weather(query: str) -> list[str]:
     weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     return [f"Temperature : {current} °C"]+[f"Temperature range for {weekdays[(current_weekday+i)%7]}: {days_text[i]}" for i in range(len(days_text))]
 
-@cacher
-def autocomplete(query) -> list[str]:
-    url = f"https://suggestqueries.google.com/complete/search?client=chrome&q={quote(query)}"
-    return requests.get(url).json()[1]
-
-@cacher
-def translate(query: str) -> list[str]:
-    query = query.rstrip("-").strip()
-    langs = ['en', 'ru']
-    ru = query[0].lower() in "йцукенгшщзхъфывапролджэячсмитьбю"
-    return [loop.run_until_complete(translator.translate(query, src=langs[ru], dest=langs[not ru])).text]
-
-def page_size() -> int:
-    if chrome():
-        return 2
-    else: return 4
-
 def pagify(data: list[str], query: str, page: int, context: Callable[[str], str]) -> list[str]:
     p_size = page_size()
     last = len(data) <= (page+1)*p_size+1
@@ -537,48 +478,6 @@ def pagify(data: list[str], query: str, page: int, context: Callable[[str], str]
     return data[page*p_size:(page+1)*p_size] + [next_page]
 
 def bang(code): return lambda t:f"{t} !{code}"
-
-@pager(bang("s"))
-@cacher
-def spell(query: str, context: Callable[[str], str]=lambda t:t) -> list[str]:
-    cands = [spell_checker.candidates(word) or [word] for word in query.split()]
-    data = sorted(product(*cands), key=lambda sugg:-sum(map(lambda w:freqs.get(w, 0), sugg)))
-    return [context(" ".join(line)) for line in data]
-
-@cacher(timedelta(days=30))
-def define(term: str) -> list[dict[str, str]]:
-    data = requests.get(f"https://api.dictionaryapi.dev/api/v2/entries/en/{term}").json()
-    if isinstance(data, dict): return None
-    res = []
-    for word in data:
-        for meaning in word["meanings"]:
-            res.extend([{"part": meaning["partOfSpeech"], "definition": df["definition"]} for df in meaning["definitions"]])
-    return res
-
-@pager(bang("d"))
-@cacher
-def dictionary(query: str) -> list[str]:
-    *words, part = query.split()
-    if part in ["noun", "verb", "adj", "adv"] and any(words):
-        if part == "adj": part = "adjective"
-        if part == "adv": part = "adverb"
-        query = " ".join(words)
-    else: part = None
-    data = define(query)
-    if data is None:
-        res = spell(query, context=bang("d"))
-        if len(res) == 1 and res[0] == query+" !d":
-            return ["no meaning found"]
-        return res
-    if part is not None: data = [entry for entry in data if entry["part"]==part]
-    return [f'{query} — {entry["part"]}, {entry["definition"]}' for entry in data]
-
-@pager(bang("ud"))
-@cacher(timedelta(days=7))
-def udictionary(query: str) -> list[str]:
-    soup = BeautifulSoup(requests.get(f"https://www.urbandictionary.com/define.php?term={query}").text, features="html.parser")
-    return [df.find("div", class_="meaning").text for df in soup.find_all("div", class_="definition")] or ["no meaning found"]
-
 
 def assign(query: str) -> list[str]:
     query = query.strip()
@@ -609,4 +508,4 @@ def evalpy(query: str) -> list[str]:
     return [res]
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(port=2000, debug=True)

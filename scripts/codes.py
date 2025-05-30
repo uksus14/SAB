@@ -1,24 +1,16 @@
 from typing import Self
 
-russian = "ё\"№;%:?йцукенгшщзхъфывапролджэячсмитьбю"
-english = "`@#$%^&qwertyuiop[]asdfghjkl;'zxcvbnm,."
+russian = "ХЪЖЭБЮ,ё\"№;%:?йцукенгшщзхъфывапролджэячсмитьбю"
+english = "{}:\"<>?`@#$%^&qwertyuiop[]asdfghjkl;'zxcvbnm,."
 ru_en = {r: e for r, e in zip(russian, english)}
 en_ru = {e: r for e, r in zip(english, russian)}
-def translit(text: str, d: dict[str, str]):
-    ans = ""
-    prev = ""
-    for l in text.lower():
-        if l in d and prev != '!':
-            ans+=d[l]
-        else: ans+=l
-        prev = l
-    return ans
-def all_ways(text: str) -> list[str]:
-    return [text, translit(text, en_ru), translit(text, ru_en)]
-def is_same_keys(text: str, codes: list[str]):
+def translit(text: str, d: dict[str, str]) -> str:
+    return "".join(d.get(l, l) for l in text.lower())
+def same_keys_find(text: str, codes: list[str]) -> str|None:
     text = text.lower().strip()
-    for way in [text, translit(text, en_ru), translit(text, ru_en)]:
-        if way in codes: return way
+    for d in [{}, ru_en, en_ru]:
+        text = translit(text, d)
+        if text in codes: return text
     return False
 
 class Code:
@@ -26,16 +18,12 @@ class Code:
     def __init__(self, value, *codes: str):
         self.value = value
         self.codes = codes
-        if type(self) not in self.all:
-            self.all[type(self)] = []
-        self.all[type(self)].append(self)
-    def main(self):
-        return self.value
+        self.all.setdefault(type(self), []).append(self)
     @classmethod
-    def resolve(cls, query: str):
+    def resolve(cls, call: str):
         for code in cls.all[cls]:
-            if is_same_keys(query, code.codes):
-                return code.main()
+            if same_keys_find(call, code.codes):
+                return code.value
         return None
     
 class URLCode(Code):

@@ -1,9 +1,10 @@
-flask
-requests
+user-agent-parser
+currencyconverter
 pyspellchecker
 beautifulsoup4
-user-agent-parser
 googletrans
+requests
+openai
+flask
 sympy
-currencyconverter
 regex
