@@ -34,6 +34,17 @@ def approx_time(time: timedelta|datetime) -> str:
     if num != 1: word += 's'
     return f"{num} {word}"
 
+def resolve_date(day: int=None, month: int=None, year: int=None) -> datetime|None:
+    if day is None: return None
+    now = datetime.now()
+    if year is None:
+        year = now.year
+        if month > now.month or (month == now.month and day > now.day): year -= 1
+    elif year < 100:
+        year += 1900
+        if year <= (now.year % 100): year += 100
+    return datetime(year, month, day)
+
 russian = "ХЪЖЭБЮ,ё\"№;%:?йцукенгшщзхъфывапролджэячсмитьбю"
 english = "{}:\"<>?`@#$%^&qwertyuiop[]asdfghjkl;'zxcvbnm,."
 ru_en = {r: e for r, e in zip(russian, english)}
@@ -46,6 +57,12 @@ def same_keys_find(text: str, codes: list[str]) -> str|None:
         text = translit(text, d)
         if text in codes: return text
     return False
+
+def prep_query(query: str) -> str:
+    query = query.strip()
+    if query.endswith("Ё"): return translit(query[:-1], ru_en).strip()
+    if query.endswith("~"): return translit(query[:-1], en_ru).strip()
+    return query
 
 def normalize_url(url: str) -> str:
     if not is_url(url): return url

@@ -4,10 +4,10 @@ from typing import Callable, Tuple, Generator
 from scripts.decorators import AccessLimiter
 from datetime import datetime, timedelta
 from scripts.actions import Action
-from variables import Variable
+from variables import HistoryVar
 
 class Search(Action):
-    history = Variable[list[dict[str, str|datetime]]].create("history", [])
+    history = HistoryVar.create("history", [])
     order = None
     _list = []
     DEFAULT_CACHE_TIME = timedelta(days=1)

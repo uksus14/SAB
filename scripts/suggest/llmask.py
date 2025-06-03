@@ -1,4 +1,11 @@
+from scripts.actions import Action
+from commons import BASE_FOLDER
 import openai
+
+try: openai.api_key = (BASE_FOLDER / "openai_key.txt").read_text().strip()
+except FileNotFoundError:
+    print("OpenAI key file not found")
+    Action.disable["llmask"] = "OpenAI key not found"
 
 def llmask(call: str, query: str) -> list[str]:
     prep = "You are a helpful assistant. Respond with a very short factual answer, ideally one phrase or a few words"

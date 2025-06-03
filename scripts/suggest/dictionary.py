@@ -22,7 +22,6 @@ parts = ["noun", "verb", "adjective", "adverb"]
 def dictionary(call: str, query: str, part_slice: str=None) -> list[str]:
     part = part_slice and next((part for part in parts if part.startswith(part_slice)))
     define_call = query
-    print(part, part_slice)
     if part is not None: define_call = f"{query} {part}"
     data = define(define_call, term=query, part=part)
     if data is None: return None

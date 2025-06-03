@@ -1,5 +1,5 @@
 from scripts.decorators import Pager, AccessLimiter
-from scripts.utils import approx_time
+from scripts.utils import approx_time, page_size
 from typing import Callable, Tuple
 from scripts.actions import Action
 from datetime import timedelta
@@ -18,7 +18,7 @@ class Suggest(Action):
     def resolve(cls, call) -> list[str]:
         res = super().resolve(call)
         if not isinstance(res, list): res = [str(res)]
-        return res
+        return res[:page_size()+1]
     def __call__(self, call, *args, **kwargs):
         return super().__call__(call, *args, **kwargs)
     def __repr__(self) -> str:

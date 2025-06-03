@@ -1,5 +1,9 @@
 clear
 sab
+add_line
+symppy_eval
+cool_eval
+refresh_eval
 udictionary
 match_history
 translate

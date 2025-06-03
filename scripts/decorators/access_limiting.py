@@ -1,7 +1,7 @@
 from scripts.utils import approx_time, approx_time_re
 from scripts.message import MessageList
 from datetime import datetime, timedelta
-from variables import Variable
+from variables import AccessVar
 from functools import wraps
 from typing import Callable
 from bisect import bisect
@@ -28,7 +28,7 @@ class AccessLimiter:
         return self._slice
     def setfunc(self, funcname: str):
         self.funcname = funcname
-        self.access = Variable[list[dict[str, datetime|str]]].create(self.var_name.format(funcname), [])
+        self.access = AccessVar.create(self.var_name.format(funcname), [])
         slice = [entry["time"] for entry in self.access.data]
         self._slice = []
         if self.period: self._slice = slice[bisect(slice, datetime.now()-self.period):]

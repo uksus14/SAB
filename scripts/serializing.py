@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Callable, Any, Self
 import regex
+import json
 
 class Serializers:
     def __init__(self, serialize: Callable[[Any], Any], unserialize: Callable[[Any], Any], raw: bool=False):
@@ -23,6 +24,16 @@ class Serializers:
         ser = cls.get(name)
         if ser.raw: return data
         return [name, ser.serialize_func(data)]
+    @classmethod
+    def line_splitter(cls) -> Self:
+        serialize = lambda data: "\n".join(data)
+        unserialize = lambda data: data.split("\n")
+        return cls(serialize, unserialize)
+    @classmethod
+    def default(cls) -> Self:
+        serialize = lambda data: json.dumps(cls.serialize(data), ensure_ascii=False)
+        unserialize = lambda data: cls.unserialize(json.loads(data))
+        return cls(serialize, unserialize)
     @classmethod
     def get(cls, type: str) -> Self:
         i = lambda x:x

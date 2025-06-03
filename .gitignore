@@ -1,5 +1,7 @@
 __pycache__
 env
 sympy
-variables/*.json
+variables/*
+variables copy
+variables/!__init__.py
 openai_key.txt
