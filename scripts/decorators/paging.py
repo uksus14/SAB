@@ -1,5 +1,6 @@
 from scripts.utils import page_size
 from typing import Callable
+from functools import wraps
 
 def pagify(data: list[str], call: str, page: int) -> list[str]:
     p_size = page_size()
@@ -8,6 +9,7 @@ def pagify(data: list[str], call: str, page: int) -> list[str]:
 
 class Pager:
     def __new__(cls, func: Callable[[str], list]) -> Callable[[str], list]:
+        @wraps(func)
         def inner(call: str, **kwargs) -> list[str]:
             call = call.strip()
             stripped = call.rstrip("-")

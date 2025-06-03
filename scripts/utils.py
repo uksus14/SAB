@@ -1,7 +1,7 @@
+from constants import top_level_domains
 from datetime import datetime, timedelta
 from typing import Iterator, TypeVar
-from urllib.parse import quote
-from constants import bangs
+from commons import BASE_URL
 import user_agent_parser
 import flask
 import regex
@@ -17,22 +17,51 @@ def page_size() -> int:
 def eval_normalize(script: str) -> str:
     return script.replace("^", "**").replace("\\**", "^")
 
-def bangs_url(query: str) -> str:
-    r = regex.search(r"!(\S+)", query)
-    a = "!gwoai"
-    if r: a = r.group().lower()
-    return bangs.get(a[1:], bangs["gwoai"]).format(q=quote(regex.sub(r'!\S+\s*', '', query).strip()))
-
 EL = TypeVar("EL")
 def first_not_none(gen: Iterator[EL|None], default=None) -> EL|None:
     return next((el for el in gen if el is not None), default)
 
 approx_time_re = r"\d+ (second|day|hour|minute)s?"
 def approx_time(time: timedelta|datetime) -> str:
+    if isinstance(time, (float, int)):
+        if time > 20*365.25*24*60*60: time = datetime.fromtimestamp(time)
+        else: time = timedelta(seconds=time)
     if isinstance(time, datetime): time = datetime.now() - time
     num, word = time.seconds, "second"
     if time.days > 0: num, word = time.days, "day"
-    if time.seconds >= 3600: num, word = time.seconds//3600, "hour"
-    if time.seconds >= 60: num, word = time.seconds//60, "minute"
+    elif time.seconds >= 3600: num, word = time.seconds//3600, "hour"
+    elif time.seconds >= 60: num, word = time.seconds//60, "minute"
     if num != 1: word += 's'
     return f"{num} {word}"
+
+russian = "ХЪЖЭБЮ,ё\"№;%:?йцукенгшщзхъфывапролджэячсмитьбю"
+english = "{}:\"<>?`@#$%^&qwertyuiop[]asdfghjkl;'zxcvbnm,."
+ru_en = {r: e for r, e in zip(russian, english)}
+en_ru = {e: r for e, r in zip(english, russian)}
+def translit(text: str, d: dict[str, str]) -> str:
+    return "".join(d.get(l, l) for l in text.lower())
+def same_keys_find(text: str, codes: list[str]) -> str|None:
+    text = text.lower().strip()
+    for d in [{}, ru_en, en_ru]:
+        text = translit(text, d)
+        if text in codes: return text
+    return False
+
+def normalize_url(url: str) -> str:
+    if not is_url(url): return url
+    return regex.match(f"^{url_pattern}$", url, regex.IGNORECASE).group("url")
+
+def all_ways(*codes: str) -> list[str]:
+    ways = lambda code:[code, translit(code, en_ru), translit(code, ru_en)]
+    return [transcode for code in codes for transcode in ways(code.lower())]
+
+def pattern_or(*codes: str, safe: bool=True) -> str:
+    return f"({'|'.join(set(map(regex.escape, codes) if safe else codes))})"
+
+def prefix_pattern(word: str) -> str:
+    return "(".join(word[:-1])+word[-1]+"?"+")?"*(len(word)-2)
+
+def is_url(query: str) -> bool:
+    return regex.search(f"^{BASE_URL}|{url_pattern}$", query, flags=regex.IGNORECASE) is not None
+
+url_pattern = fr"(https?://)?(ww(w|2)\.)?(?P<url>[A-Za-z0-9_.\-~]+?\.{pattern_or(*top_level_domains)}(/.*)?(\?.*)?(#.*)?)"

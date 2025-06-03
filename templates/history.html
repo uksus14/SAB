@@ -1,6 +1,6 @@
 {% extends 'blank.html' %}
-{% block title %}History{{' matching '+query if isquery}}{% endblock %}
-{% block message %}History{{' matching '+query if isquery}}{% endblock %}
+{% block title %}History{{' matching '+query if query}}{% endblock %}
+{% block message %}History{{' matching '+query if query}}{% endblock %}
 {% block main %}
 <ul>
     {% for line in history %}

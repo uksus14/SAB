@@ -1,0 +1,13 @@
+clear
+sab
+udictionary
+match_history
+translate
+weather
+llmask
+feet_to_cm
+dictionary
+spell
+convert_currencies
+abbreviate
+autocomplete

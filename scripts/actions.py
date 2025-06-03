@@ -1,57 +1,66 @@
 from __future__ import annotations
 from scripts.utils import approx_time, first_not_none
 from scripts.decorators import Cacher, AccessLimiter
-from typing import Callable, Tuple, TypeVar, Any
-from scripts.commons import MessageList
+from typing import Callable, Self, Tuple, TypeVar
+from scripts.decorators import coerce_types
+from scripts.message import MessageList
+from commons import BASE_FOLDER
 from datetime import timedelta
+import bisect
+import regex
 
 AR = TypeVar("AR")
-
-class ActionList:
-    _instance = None
-    actions: list[Action] = []
-    def __new__(cls):
-        if cls._instance is None: cls._instance = super().__new__(cls)
-        return cls._instance
-    def add(self, action: Action): self.actions.append(action)
-    def __call__(self, *args, **kwargs) -> None|AR|str:
-        return first_not_none(action(*args, **kwargs) for action in self.actions)
-    def exec(self, *args, **kwargs) -> None|AR:
-        return first_not_none(action.exec(*args, **kwargs) for action in self.actions)
-    def __repr__(self) -> str:
-        return f"{type(self).__name__}(\n" + ",\n".join(map(str, self.actions))+")"
-    def __getattribute__(self, name) -> Any|Action:
-        actions: list[Action] = super().__getattribute__('actions')
-        action = next((action for action in actions if action.funcname == name), None)
-        return super().__getattribute__(name) if action is None else action
-
 class Action:
     DEFAULT_CACHE_TIME = timedelta(days=1)
-    DEFAULT_ACCESS_LIMIT = AccessLimiter(50, timedelta(days=1), timedelta(seconds=3))
-    _list = ActionList()
+    DEFAULT_ACCESS_LIMIT = lambda *s:AccessLimiter(50, timedelta(days=1), timedelta(seconds=3))
+    order: list[str]|None|int = -1
+    _list: list[Self] = []
     messages = MessageList(disabled=r"(?P<funcname>[a-zA-Z]+) is disabled. (?P<reason>.+)")
     disable: dict[str, str] = {}
-    def __init__(self, action: Callable[[str, *Tuple[str, ...]], AR], *, cache: bool|timedelta=False, limit: bool|AccessLimiter=False):
+    def __init__(self, action: Callable[[str, *Tuple[str, ...]], AR], *, pattern: str=None, cache: bool|timedelta=False, limit: bool|AccessLimiter=False):
+        self.pattern = pattern
         self.funcname = action.__name__
-        self._list.add(self)
+        if self.order == -1: self._list.append(self)
+        else: self.add(self)
         self.inner = action
-        self.action = self.inner
+        self.action = coerce_types(self.inner)
         if limit:
-            if limit is True: limit = self.DEFAULT_ACCESS_LIMIT
+            if limit is True: limit = self.DEFAULT_ACCESS_LIMIT()
             self.action = limit(self.action, self.funcname)
         self.limit = limit
         if cache:
             if cache is True: cache = self.DEFAULT_CACHE_TIME
             self.action = Cacher(cache)(self.action)
         self.cache = cache
-    
-    def __call__(self, call: str, *args, **kwargs) -> None|AR|str:
-        print(call, self.funcname, self.disable)
-        if self.funcname in self.disable:
-            return self.messages.disabled.format(funcname=self.funcname, reason=self.disable[self.funcname])
-        return self.exec(call, *args, **kwargs)
-    def exec(self, call: str, *args, **kwargs) -> None|AR:
-        return self.action(call.strip(), *args, **kwargs)
+    @classmethod
+    def _order_file(cls, mode: str):
+        return open(BASE_FOLDER / "orders" / f"{cls.__name__.lower()}_order.txt", mode, encoding="utf-8")
+    @classmethod
+    def add(cls, action: Action):
+        if cls.order is None:
+            with cls._order_file("a") as f: pass
+            with cls._order_file("r") as f: cls.order = f.read().split("\n")
+        if action.funcname not in cls.order:
+            cls.order.insert(0, action.funcname)
+            with cls._order_file("w") as f: f.write("\n".join(cls.order))
+        bisect.insort(cls._list, action, key=lambda ac:cls.order.index(ac.funcname))
+    @classmethod
+    def resolve(cls, call):
+        return first_not_none(action(call) for action in cls._list)
+    @classmethod
+    def get(cls, funcname: str) -> Self:
+        return next((action for action in cls._list if action.funcname == funcname), None)
+    @classmethod
+    def iter(cls): return iter(cls._list)
+    def match(self, call: str) -> None|dict[str, str]:
+        if self.pattern is None: return {}
+        match = regex.match(f"^{self.pattern}$", call.strip(), regex.IGNORECASE)
+        return None if match is None else match.groupdict()
+    def __call__(self, call: str, *args, **kwargs) -> None|str|AR:
+        groups = self.match(call)
+        if groups is None: return None
+        if self.funcname not in self.disable: return self.action(call.strip(), *args, **groups, **kwargs)
+        return self.messages.disabled.format(funcname=self.funcname, reason=self.disable[self.funcname])
 
     def __repr__(self) -> str:
-        return f"Action({self.funcname}, cache={approx_time(self.cache)})"
+        return f"Action({self.funcname}, cache={self.cache and approx_time(self.cache)})"

@@ -11,5 +11,5 @@ def llmask(call: str, query: str) -> list[str]:
     )
     return response.choices[0].message.content.strip()
 
-from scripts.suggest.suggestion import Suggest
+from scripts.suggestion import Suggest
 llmask = Suggest(r"(?P<query>.+)!!\?", llmask, cache=True, limit=True)

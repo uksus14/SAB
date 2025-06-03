@@ -11,7 +11,7 @@ class Message:
         self.template = template
         self.objects[name] = self
     def match(self, call: str) -> dict[str, str]|None:
-        match = regex.match(self.pattern, call) if isinstance(call, str) else None
+        match = regex.match(f"^{self.pattern}$", call) if isinstance(call, str) else None
         return match.groupdict() if match is not None else None
     def format(self, **kwargs):
         return self.template.format(**kwargs)

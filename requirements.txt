@@ -5,6 +5,7 @@ beautifulsoup4
 googletrans
 requests
 openai
+geopy
 flask
 sympy
 regex

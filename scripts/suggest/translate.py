@@ -16,6 +16,6 @@ def translate(call: str, query: str) -> list[str]:
     promise = translator.translate(query, src=langs[is_ru], dest=langs[not is_ru])
     return loop.run_until_complete(promise).text
 
-from scripts.suggest.suggestion import Suggest
+from scripts.suggestion import Suggest
 from datetime import timedelta
 translate = Suggest(r"(?P<query>.+) (!t|пере(вод)?)", translate, cache=timedelta(minutes=5))

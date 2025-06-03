@@ -1,7 +1,8 @@
 from scripts.utils import first_not_none
 from datetime import datetime, timedelta
-from scripts.commons import MessageList
+from scripts.message import MessageList
 from typing import Callable, TypeVar
+from functools import wraps
 
 R = TypeVar("R")
 class Cacher:
@@ -15,6 +16,7 @@ class Cacher:
         if not isinstance(response, str): False
         return bool(first_not_none(messagelist.match(response) for messagelist in cls.exempt_messages))
     def __call__(self, func: Callable[[str], R]) -> Callable[[str], R]:
+        @wraps(func)
         def wrapper(call: str, *args, **kwargs) -> R:
             call = call.strip()
             now = datetime.now()

@@ -1,63 +1,57 @@
 from scripts.utils import approx_time, approx_time_re
-from scripts.commons import MessageList
+from scripts.message import MessageList
 from datetime import datetime, timedelta
+from variables import Variable
+from functools import wraps
 from typing import Callable
-import json
+from bisect import bisect
 
-def disabled(limiter: 'AccessLimiter') -> Callable[..., str]:
-    def wrapper(*args, **kwargs) -> str:
-        return limiter.messages.disabled.template.format(funcname=limiter.funcname, reason=AccessLimiter.disable.get(limiter.funcname, ""))
-    return wrapper
 class AccessLimiter:
-    path = "./variables/access_{}.json"
+    var_name = "access_{}"
     
     messages = MessageList(empty_query="Please provide a query",
                            reset="Access reset",
-                           access=fr"(?P<num>\d+) requests made in last (?P<period>{approx_time_re})",
+                           access=fr"(?P<num>\d+) requests made in last (?P<period>{approx_time_re}), (?P<all>\d+) since the beginning",
                            too_fast=fr"Please wait (?P<wait>{approx_time_re}) before making another request",
                            reached_limit=fr"You have reached the limit of (?P<max_count>\d+) requests per (?P<period>{approx_time_re})\. first request was (?P<first_req>{approx_time_re}) ago\. Wait or type 'reset\?'")
     full_access = []
-    def __init__(self, max_count: int, period: timedelta, min_time: timedelta = timedelta(seconds=2)):
+    def __init__(self, max_count: int=None, period: timedelta=None, min_time: timedelta|None = timedelta(seconds=2)):
         self.max_count = max_count
         self.period = period
         self.min_time = min_time
-        self._accesses = []
+    def add_access(self, call: str):
+        self._slice.append(datetime.now())
+        self.access.data += [{"time": self.slice[-1], "call": call}]
     @property
-    def accesses(self) -> list[datetime]:
-        now = datetime.now()
-        if self._accesses and now - self._accesses[0] < self.period:
-            self._accesses = list(filter(lambda access: now - access < self.period, self._accesses))
-        if not self._accesses: return [now - self.period]
-        return self._accesses
+    def slice(self) -> list[datetime]:
+        if self.period: self._slice = self._slice[bisect(self._slice, datetime.now() - self.period):]
+        return self._slice
     def setfunc(self, funcname: str):
         self.funcname = funcname
-        with open(self.path.format(self.funcname), "a") as f: pass
-        with open(self.path.format(self.funcname), "r") as f: data = f.read()
-        if data: self._accesses = [datetime.fromtimestamp(access) for access in json.loads(data)]
-        self.update()
-    def update(self):
-        with open(self.path.format(self.funcname), "w") as f: f.write(json.dumps([access.timestamp() for access in self.accesses]))
+        self.access = Variable[list[dict[str, datetime|str]]].create(self.var_name.format(funcname), [])
+        slice = [entry["time"] for entry in self.access.data]
+        self._slice = []
+        if self.period: self._slice = slice[bisect(slice, datetime.now()-self.period):]
     def __call__(self, func: Callable[[str], list[str]], funcname: str) -> Callable[[str], list[str]]:
         self.setfunc(funcname)
-        def wrapper(call: str, query: str=None, *args, **kwargs) -> list[str]|str:
-            if self.funcname in AccessLimiter.full_access: return func(call, query=query, *args, **kwargs)
-            if query is None: query = call
-            query = query.strip()
-            now = datetime.now()
+        @wraps(func)
+        def wrapper(call: str, query: str, *args, **kwargs) -> list[str]|str:
+            if self.funcname in AccessLimiter.full_access:
+                self.add_access(call)
+                return func(call, query=query, *args, **kwargs)
             err = None
-            if not query: err = self.messages.empty_query.template
+            if not query: err = self.messages.empty_query.format()
             elif query.lower() == "reset":
-                self._accesses.clear()
-                err = self.messages.reset.template
-            elif query.lower() == "access":
-                err = self.messages.access.template.format(num=len(self.accesses), period=approx_time(self.period))
-            elif now - self.accesses[-1] < self.min_time:
-                err = self.messages.too_fast.template.format(wait=approx_time(self.min_time))
-            elif len(self.accesses) >= self.max_count:
-                err = self.messages.reached_limit.template.format(max_count=self.max_count, period=approx_time(self.period), first_req=approx_time(self.accesses[0]))
-            self.update()
+                self._slice.clear()
+                err = self.messages.reset.format()
+            elif query.lower() == "access" and self.period:
+                err = self.messages.access.format(num=len(self.slice), period=approx_time(self.period), all=len(self.access.data))
+            elif self.slice and self.min_time and datetime.now() - self.slice[-1] < self.min_time:
+                err = self.messages.too_fast.format(wait=approx_time(self.min_time))
+            elif self.max_count and len(self.slice) >= self.max_count:
+                err = self.messages.reached_limit.format(max_count=self.max_count, period=approx_time(self.period), first_req=approx_time(self.slice[0]))
             if err: return err
-            self._accesses.append(datetime.now())
+            self.add_access(call)
             return func(call, query=query, *args, **kwargs)
         if self.funcname in AccessLimiter.full_access: return func
         return wrapper

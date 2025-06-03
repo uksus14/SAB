@@ -7,6 +7,6 @@ def simplify(call: str, query: str) -> list[str]:
     except: res = "not computable"
     return res
 
-from scripts.suggest.suggestion import Suggest
+from scripts.suggestion import Suggest
 from datetime import timedelta
 # Suggestion(r"={0,2}(?P<query>.+)==", simplify, cache=timedelta(minutes=1))

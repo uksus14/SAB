@@ -9,6 +9,6 @@ def spell(call: str, query: str) -> list[str]:
     if len(data) == 1: return "words not recognized"
     return [call.replace(query, " ".join(line)) for line in data]
 
-from scripts.suggest.suggestion import Suggest
+from scripts.suggestion import Suggest
 from datetime import timedelta
 spell = Suggest(r"(?P<query>.+) !(s|d)", spell, cache=timedelta(minutes=10))
