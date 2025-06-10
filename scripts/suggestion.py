@@ -4,11 +4,11 @@ from typing import Callable, Tuple
 from scripts.actions import Action
 from datetime import timedelta
 
-class Suggest(Action):
+class Suggest(Action[list[str]|str|None]):
     order = None
     _list = []
     DEFAULT_CACHE_TIME = timedelta(days=1)
-    def __init__(self, pattern: str, action: Callable[[str, *Tuple[str, ...]], list[str]], *, cache: bool|timedelta=False, page: bool=False, limit: bool|AccessLimiter=False):
+    def __init__(self, pattern: str, action: Callable[[str, *Tuple[str, ...]], list[str]|str|None], *, cache: bool|timedelta=False, page: bool=False, limit: bool|Callable[[Callable], AccessLimiter]=False):
         super().__init__(action, pattern=pattern, cache=cache, limit=limit)
         self.page = page
         if self.page:

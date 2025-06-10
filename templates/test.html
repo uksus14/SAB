@@ -1,0 +1,49 @@
+{% extends 'blank.html' %}
+{% block title %}Tests{% endblock %}
+{% block message %}Tests {{'✅' if success else '❌'}}{% endblock %}
+{% block style %}
+table {
+    border-collapse: collapse;
+    margin: 10px 0;
+}
+td {
+    border: 1px solid #ccc;
+    padding: 8px 12px;
+}
+td.label {
+    font-weight: bold;
+    background: #f0f0f0;
+}
+{% endblock %}
+{% block main %}
+{% for tester in testers %}
+<div class="tester">
+    <h3>{{'✅' if tester.success else '❌'}} {{tester.funcname}}</h3>
+    <ul>
+        {% for test in tester.tests %}
+        <li>
+            <p>{{'✅' if test.success else '❌'}} - args: {{test.args}}, kwargs: {{test.kwargs}}</p>
+            <table>
+                <tr>
+                    <td class="label">Expectation:</td>
+                    <td>{{test.expect}}</td>
+                </tr>
+                <tr>
+                    {% if test.answer|length > 100 %}
+                        <details>
+                            <summary>Answer: </summary>
+                            {{test.answer}}
+                        </details>
+                    {% else %}
+                        <td class="label">Answer:</td>
+                        <td>{{test.answer}}</td>
+                    {% endif %}
+                </tr>
+            </table>
+        </li>
+        <hr>
+        {% endfor %}
+    </ul>
+</div>
+{% endfor %}
+{% endblock %}

@@ -5,7 +5,7 @@ from scripts.codes import Code
 from datetime import datetime
 import requests
 
-class PlaceCode(Code):
+class PlaceCode(Code[tuple[float, float]]):
     _list = []
     MAX_DISTANCE_KM = 50
     @classmethod
@@ -14,10 +14,10 @@ class PlaceCode(Code):
         if distance > cls.MAX_DISTANCE_KM: return None
         return place, coords
 
-PlaceCode([51.522627, -0.049864], "london", "лондон", "mile end", "майл энд")
-PlaceCode([51.750057, -0.238140], "hatfield", "хатфилд", "herts", "хертс")
-PlaceCode([37.564208, 126.97767], "korea", "корея", "seoul", "сеул")
-PlaceCode([42.852608, 74.613493], "bishkek", "бишкек", "home", "дом")
+london = PlaceCode((51.522627, -0.049864), "london", "лондон", "mile end", "майл энд")
+hatfield = PlaceCode((51.750057, -0.238140), "hatfield", "хатфилд", "herts", "хертс")
+korea = PlaceCode((37.564208, 126.97767), "korea", "корея", "seoul", "сеул")
+bishkek = PlaceCode((42.852608, 74.613493), "bishkek", "бишкек", "home", "дом")
 
 def bad_weather_hours(data: list[int]) -> tuple[int, int]:
     rain_start, rain_end = -1, -1
@@ -84,4 +84,4 @@ def weather(call: str, place: str=None, lon: float=None, lat: float=None) -> lis
 
 from scripts.suggestion import Suggest
 
-Suggest(fr"{pattern_or(*all_ways('weather', 'погода', 'temp', 'темп'))}( (?P<place>\p{{L}}+)| (?P<lon>-?\d+\.\d+),? (?P<lat>-?\d+\.\d+))?", weather)
+weather = Suggest(fr"{pattern_or(*all_ways('weather', 'погода', 'temp', 'темп'))}( (?P<place>\p{{L}}+)| (?P<lon>-?\d+\.\d+),? (?P<lat>-?\d+\.\d+))?", weather)

@@ -8,9 +8,11 @@ from bs4 import BeautifulSoup
 import requests
 convert = CurrencyConverter()
 
-class CurrencyCode(Code):
+class CurrencyCode(Code[str]):
     _list = []
     DEFAULT_CURRENCY = "usd"
+    def __init__(self, *codes):
+        super().__init__(codes[0], *codes[1:], code_pattern="{code}s?")
     @classmethod
     def resolve(cls, call: str|None) -> str:
         if call is None: return cls.DEFAULT_CURRENCY
@@ -55,11 +57,18 @@ def convert_currencies(call: str, amount: float, fro: str, to: str=None, day: in
     return f"= {res:.2f} {tto}"
 
 from scripts.suggestion import Suggest
-Suggest(r"(?P<amount>\d+\.?\d*) (?P<fro>\p{L}+)( (to|к|в) (?P<to>\p{L}+)(( at)? (?P<day>\d{1,2})(-|/|\.)(?P<month>\d{1,2})((-|/|\.)(?P<year>(\d{2}){1,2}))?)?)?", convert_currencies, cache=True)
+convert_currencies = Suggest(r"(?P<amount>\d+\.?\d*) (?P<fro>\p{L}+)( (to|к|в) (?P<to>\p{L}+)(( at)? (?P<day>\d{1,2})(-|/|\.)(?P<month>\d{1,2})((-|/|\.)(?P<year>(\d{2}){1,2}))?)?)?", convert_currencies, cache=True)
 
-CurrencyCode("usd", "us", "dollar", "dol", "d", "доллар", "долларов", "доллара", "доллару", "долларах", "дол", "д")
-CurrencyCode("rub", "ru", "ruble", "r", "рубль", "рублей", "рублях", "рублям", "рубля", "рублю", "руб", "р")
-CurrencyCode("kgs", "kg", "som", "k", "s", "сом", "сомам", "сомах", "сома", "сомов", "с")
-CurrencyCode("gbp", "gb", "pound", "pnd", "p", "фунт", "фунтам", "фунтах", "фунта", "фунтов", "ф")
-CurrencyCode("eur", "er", "euro", "eu", "e", "евро", "е")
-CurrencyCode("krw", "kor", "korean", "won", "w", "вон", "корейский")
+from scripts.testing import Tester
+convert_tester = Tester(convert_currencies, regex_expect=True)
+convert_tester("asdf").claim(None)
+convert_tester("12.4 dollar to euros").claim(r"= \d+\.?\d* eur")
+convert_tester("1 d to som").claim(r"= \d+\.?\d* kgs")
+convert_tester("100 k to p").claim(r"= \d+\.?\d* gbp")
+
+USD = CurrencyCode("usd", "us", "dollar", "dol", "d", "доллар", "долларов", "доллара", "доллару", "долларах", "дол", "д")
+RUB = CurrencyCode("rub", "ru", "ruble", "r", "рубль", "рублей", "рублях", "рублям", "рубля", "рублю", "руб", "р")
+KGS = CurrencyCode("kgs", "kg", "som", "k", "s", "сом", "сомам", "сомах", "сома", "сомов", "с")
+GBP = CurrencyCode("gbp", "gb", "pound", "pnd", "p", "фунт", "фунтам", "фунтах", "фунта", "фунтов", "ф")
+EUR = CurrencyCode("eur", "er", "euro", "eu", "e", "евро", "е")
+KRW = CurrencyCode("krw", "kor", "korean", "won", "w", "вон", "корейский")

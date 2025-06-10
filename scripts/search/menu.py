@@ -1,7 +1,7 @@
 from scripts.codes import Code
 from commons import BASE_URL
 
-class URLCode(Code):
+class URLCode(Code[str]):
     _list = []
     def __init__(self, name: str, url: str|int, img: str, *codes: str):
         self.name = name
@@ -16,21 +16,25 @@ class URLCode(Code):
 def url_code(call: str) -> str|None: return URLCode.resolve(call)
 
 from scripts.searching import Search
-Search(r".+", url_code)
+url_code = Search(r".+", url_code)
 
-URLCode("Online Exams", 27089, "exam.jpg", "exam", "exams")
-URLCode("Mathematics B", 26196, "math.jpg", "math")
-URLCode("Science and Engineering Success", 24587, "succ.jpg", "succ", "success")
-URLCode("Foundations of Chemical Science", 24589, "chem.png", "chem", "chemistry")
-URLCode("Foundations of Physics", 24591, "phys.jpg", "phys", "physics")
-URLCode("Foundations of Engineering", 24595, "engin.jpg", "eng", "engin", "engineer", "engineering")
-URLCode("Further Mathematics", 24583, "furth.jpg", "furth", "further")
-URLCode("Youtube", "https://www.youtube.com", "youtube.png", "youtube", "you", "y")
-URLCode("Grade Guide", "https://www.gradeguide.co.uk/app/degree", "grades.png", "grades", "grade")
-URLCode("Weather", "https://weather.metoffice.gov.uk/forecast/gcpvj0v07", "weather.png", "weather", "w", "погода")
-URLCode("Google Slides", "https://docs.google.com/presentation/", "slides.jpg", "ppt", "slides", "powerpoint")
-URLCode("Google Sheets", "https://docs.google.com/spreadsheets/", "sheets.png", "excel", "sheets")
-URLCode("Google Docs", "https://docs.google.com/document/", "docs.png", "word", "docs")
-URLCode("Google Translator", "https://translate.google.com/?hl=en&sl=auto&tl=en&op=translate", "translate.webp", "translate", "!t", "translator", "переводчик", "пере")
-URLCode("Queen Mary Mysis", "https://mysis.qmul.ac.uk/", "mysis.webp", "mysis")
-URLCode("Menu", "menu", "menu.png", "menu")
+from scripts.testing import Tester
+code_tester = Tester(url_code)
+code_tester("asdfasdf").claim(None)
+code_tester("furth").claim("https://qmplus.qmul.ac.uk/course/view.php?id=24583")
+code_tester("youtube").claim("https://www.youtube.com")
+code_tester("погода").claim("https://weather.metoffice.gov.uk/forecast/gcpvj0v07")
+code_tester("menu").claim(f"{BASE_URL}/menu")
+code_tester("ьутг").claim(f"{BASE_URL}/menu")
+
+further_math = URLCode("Further Mathematics", 24583, "furth.jpg", "furth", "further")
+youtube = URLCode("Youtube", "https://www.youtube.com", "youtube.png", "youtube", "you", "y")
+grades = URLCode("Grade Guide", "https://www.gradeguide.co.uk/app/degree", "grades.png", "grades", "grade")
+weather = URLCode("Weather", "https://weather.metoffice.gov.uk/forecast/gcpvj0v07", "weather.png", "weather", "w", "погода")
+powerpoint = URLCode("Google Slides", "https://docs.google.com/presentation/", "slides.jpg", "ppt", "slides", "powerpoint")
+excel = URLCode("Google Sheets", "https://docs.google.com/spreadsheets/", "sheets.png", "excel", "sheets")
+word = URLCode("Google Docs", "https://docs.google.com/document/", "docs.png", "word", "docs")
+translator = URLCode("Google Translator", "https://translate.google.com/?hl=en&sl=auto&tl=en&op=translate", "translate.webp", "translate", "!t", "translator", "переводчик", "пере")
+mysis = URLCode("Queen Mary Mysis", "https://mysis.qmul.ac.uk/", "mysis.webp", "mysis")
+menu = URLCode("Menu", "menu", "menu.png", "menu")
+test = URLCode("Menu", "test", "menu.png", "test")

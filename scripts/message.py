@@ -1,4 +1,4 @@
-from typing import Any, Self
+from typing import Self
 import regex
 
 class Message:
@@ -6,7 +6,9 @@ class Message:
     def __init__(self, name: str, pattern_temp: str, template: str=None):
         self.name = name
         if template is None:
-            template = regex.sub(r"\\(.)", r"\1", regex.sub(r"\(\?P<(\w+)>[^)]+\)", r"{\1}", pattern_temp))
+            recursive = lambda p: fr"\{p[0]}((?>[^{p}]+|(?R))*)\{p[1]}"
+            template = regex.sub(r"\(\?P<(?P<name>\w+)>[^()]*"+recursive("()")+"[^()]*\)", r"{\g<name>}", pattern_temp)
+            template = regex.sub(r"\\(.)", r"\1", template)
         self.pattern = f"^{pattern_temp}$"
         self.template = template
         self.objects[name] = self
@@ -23,27 +25,19 @@ class Message:
 class MessageList:
     def __init__(self, **messages: Message|str):
         self.messages = messages
-        if not isinstance(next(iter(self), True), Message):
-            self.messages = {name: Message(name, message) for name, message in self.messages.items()}
+        if isinstance(next(iter(self), None), Message): return
+        self.messages = {name: Message(name, message) for name, message in self.messages.items()}
     @classmethod
     def all(cls) -> Self:
         return cls(**Message.objects)
-    @property
-    def patterns(self):
-        return [message.pattern for message in self]
-    @property
-    def templates(self):
-        return [message.template for message in self]
     def match(self, call: str) -> Message|None:
         for message in self:
             res = message.match(call)
             if res is not None: return message
         return None
     def __iter__(self):
-        for message in self.messages.values():
-            yield message
+        return iter(self.messages.values())
     def __repr__(self) -> str:
         return f"MessageList({', '.join(map(str, self))})"
-    def __getattribute__(self, name: str) -> Any|Message:
-        message = super().__getattribute__('messages').get(name, None)
-        return message if message is not None else super().__getattribute__(name)
+    def __getattr__(self, name: str) -> Message:
+        return self.messages.get(name)

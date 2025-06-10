@@ -1,10 +1,7 @@
 from scripts.utils import all_ways, pattern_or
 from scripts.actions import Action
-from typing import TypeVar
-import regex
 
-AC = TypeVar('AC')
-class Code(Action):
+class Code[AC](Action[AC]):
     order = -1
     _list = []
     def __init__(self, value: AC, *codes: str, code_pattern: str="{code}"):

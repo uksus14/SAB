@@ -6,12 +6,12 @@ from datetime import datetime, timedelta
 from scripts.actions import Action
 from variables import HistoryVar
 
-class Search(Action):
+class Search(Action[str|None]):
     history = HistoryVar.create("history", [])
     order = None
     _list = []
     DEFAULT_CACHE_TIME = timedelta(days=1)
-    def __init__(self, pattern: str, action: Callable[[str, *Tuple[str, ...]], list[str]], *, cache: bool|timedelta=False, limit: bool|AccessLimiter=False):
+    def __init__(self, pattern: str, action: Callable[[str, *Tuple[str, ...]], str|None], *, cache: bool|timedelta=False, limit: bool|Callable[[Callable], AccessLimiter]=False):
         super().__init__(action, pattern=pattern, cache=cache, limit=limit)
     @classmethod
     def resolve(cls, call: str) -> Response:
@@ -25,8 +25,3 @@ class Search(Action):
         return (entry for entry in reversed(Search.history.data) if query in entry["query"])
     def __repr__(self) -> str:
         return f"Search(r\"{self.pattern}\", {self.funcname}, cache={self.cache and approx_time(self.cache)})"
-
-def match_history(call: str, query: str=None):
-    return render_template("history.html", history=list(Search.match_history(query)), query=query)
-
-Search(r"((?P<query>.+) )?!h", match_history)

@@ -1,7 +1,7 @@
 from constants import top_level_domains
 from datetime import datetime, timedelta
-from typing import Iterator, TypeVar
 from commons import BASE_URL
+from typing import Iterator
 import user_agent_parser
 import flask
 import regex
@@ -17,8 +17,7 @@ def page_size() -> int:
 def eval_normalize(script: str) -> str:
     return script.replace("^", "**").replace("\\**", "^")
 
-EL = TypeVar("EL")
-def first_not_none(gen: Iterator[EL|None], default=None) -> EL|None:
+def first_not_none[EL](gen: Iterator[EL|None], default=None) -> EL|None:
     return next((el for el in gen if el is not None), default)
 
 approx_time_re = r"\d+ (second|day|hour|minute)s?"
