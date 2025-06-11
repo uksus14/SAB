@@ -20,7 +20,7 @@ td.label {
 {% endblock %}
 {% block main %}
 {% for tester in testers %}
-<details class="tester" {{ '' if tester.success else 'open' }}>
+<details id="{{tester.funcname}}" class="tester" {{ '' if tester.success else 'open' }}>
     <summary>{{'✅' if tester.success else '❌'}} {{tester.funcname}}</summary>
     <ul>
         {% for test in tester.tests %}
@@ -42,6 +42,12 @@ td.label {
                         <td>{{test.answer}}</td>
                     {% endif %}
                 </tr>
+                {% if test.reason %}
+                <tr>
+                    <td class="label">Reason:</td>
+                    <td>{{test.reason}}</td>
+                </tr>
+                {% endif %}
             </table>
         </li>
         <hr>

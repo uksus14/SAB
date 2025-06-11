@@ -19,3 +19,8 @@ def translate(call: str, query: str) -> list[str]:
 from scripts.suggestion import Suggest
 from datetime import timedelta
 translate = Suggest(r"(?P<query>.+) (!t|пере(вод)?)", translate, cache=timedelta(minutes=5))
+
+from scripts.testing import Tester
+translate_tester = Tester(translate)
+translate_tester("conscience !t").claim("совесть")
+translate_tester("клептомания пере").claim("kleptomania")

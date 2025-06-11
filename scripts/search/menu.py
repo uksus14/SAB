@@ -37,4 +37,4 @@ word = URLCode("Google Docs", "https://docs.google.com/document/", "docs.png", "
 translator = URLCode("Google Translator", "https://translate.google.com/?hl=en&sl=auto&tl=en&op=translate", "translate.webp", "translate", "!t", "translator", "переводчик", "пере")
 mysis = URLCode("Queen Mary Mysis", "https://mysis.qmul.ac.uk/", "mysis.webp", "mysis")
 menu = URLCode("Menu", "menu", "menu.png", "menu")
-test = URLCode("Menu", "test", "menu.png", "test")
+test = URLCode("Tests", "test", "menu.png", "test")

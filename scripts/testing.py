@@ -3,18 +3,18 @@ import regex
 
 class TestException(Exception):
     @staticmethod
-    def generic(test: 'Test', answer, success: bool):
-        return {"args": test.args, "kwargs": test.kwargs, "answer": str(answer), "expect": str(test.expect_value), "success": success}
+    def generic(test: 'Test', answer, success: bool, reason: Exception=None):
+        return {"args": test.args, "kwargs": test.kwargs, "answer": str(answer), "expect": str(test.expect_value), "reason": reason, "success": success}
     @classmethod
     def success(cls, test: 'Test', answer):
         return cls.generic(test, answer, True)
     @classmethod
-    def fail(cls, test: 'Test', answer=..., *, verbose=False):
-        if not verbose: return cls(test.funcname, test.args, test.kwargs, answer, test.expect_value)
-        return cls.generic(test, answer, False)
-    def __init__(self, func, args, kwargs, answer=..., expect=...):
-        message = f"function {func} failed with arguments {args} and keywords {kwargs}"
-        if not (answer == expect == ...):
+    def fail(cls, test: 'Test', answer=..., *, reason: Exception=None, verbose=False):
+        if not verbose: raise cls(test.funcname, test.args, test.kwargs, test.expect_value, answer, reason)
+        return cls.generic(test, answer, False, str(reason) if reason else None)
+    def __init__(self, func, args, kwargs, expect, answer=..., reason=None):
+        message = f"reason: {reason}\nfunction {func} failed with arguments {args} and keywords {kwargs}"
+        if answer != ...:
             message += f" because answer {answer} didn't match and expectation {expect}"
         super().__init__(message)
 
@@ -31,7 +31,7 @@ class Test:
         if isinstance(expect, Callable): self.expect_value = expect.__doc__
         else: self.expect_value = expect
         if expect is True:
-            self.expect = lambda ans: True
+            self.expect = lambda ans: ans is not None
         elif expect is None:
             self.expect = lambda ans: ans is None
         elif isinstance(expect, Callable):
@@ -47,18 +47,15 @@ class Test:
         return self
     def test(self, verbose=False):
         try: answer = self.func(*self.args, **self.kwargs)
-        except:
-            e = TestException.fail(self, verbose=verbose)
-            if verbose: return e
-            else: raise e
+        except Exception as e:
+            return TestException.fail(self, reason=e, verbose=verbose)
         good = False
         try: good = self.expect(answer)
-        except: pass
-        if good:
-            return TestException.success(self, answer) if verbose else None
-        e = TestException.fail(self, answer, verbose=verbose)
-        if verbose: return e
-        else: raise e
+        except Exception as e:
+            return TestException.fail(self, answer, reason=e, verbose=verbose)
+        if not good: return TestException.fail(self, answer, verbose=verbose)
+        if not verbose: return None
+        return TestException.success(self, answer)
 
 
 class Tester:

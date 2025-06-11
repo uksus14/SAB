@@ -1,6 +1,7 @@
 from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication
 from scripts.serializing import Serializers
 from variables import EvalStrVar
+import regex
 
 default_eval = """#Eval variables and functions here
 from math import *
@@ -30,25 +31,48 @@ def refresh_eval(call: str) -> str:
     eval_strs._data = prev
     return "There was a problem with Variables!"
 
-def cool_eval(call: str, query: str, assignment: str=None) -> str:
+def cool_eval(call: str, query: str, variable: str=None, value: str=None) -> str:
     query = query.replace("^", "**")
-    func = exec if assignment else eval
+    func = exec if variable else eval
     try: return f"= {func(query, globals=globs())}"
     except: return symppy_eval(call+"=")
 
 def symppy_eval(call: str, query: str) -> str:
     query = query.replace("^", "**")
-    try: return f"== {parse_expr(query, transformations=standard_transformations + (implicit_multiplication,))}"
+    try: exp = parse_expr(query, transformations=standard_transformations + (implicit_multiplication,))
     except: return "not computable"
+    return f"== {exp}"
 
-def add_line(call: str, query: str, var: str=None, val: str=None):
+def add_line(call: str, query: str, variable: str=None, value: str=None) -> str:
     query = query.replace("^", "**")
     if not cool_eval(call.replace("===", "=")).startswith("= "): return "Adding line failed!"
-    eval_strs.data += [query]
+    def persist(line: str) -> bool:
+        match = regex.match(f"^{assignment_re}$", line) or regex.match(r"^(?P<variable>\w+)\..+$", line)
+        return match is None or match.group("variable") != variable
+    if variable is None: persist = lambda l: True
+    var_line = eval_strs.data.index("#variables")
+    eval_strs.data = eval_strs.data[:var_line]+list(filter(persist, eval_strs.data[var_line:]))+[query]
     return "Line saved!"
 
+assignment_re = r"(?P<variable>.*[^!=><])=(?P<value>[^=].*)"
 from scripts.suggestion import Suggest
 refresh_eval = Suggest(r"==r", refresh_eval)
-cool_eval = Suggest(r"(==? )?(?P<query>(?P<assignment>.*[^!=><]=[^=].*)|.+)=", cool_eval)
+cool_eval = Suggest(fr"(==? )?(?P<query>({assignment_re})|.+)=", cool_eval)
 symppy_eval = Suggest(r"(==? )?(?P<query>.+)==", symppy_eval)
-add_line = Suggest(r"(==? )?(?P<query>.+)===", add_line)
+add_line = Suggest(fr"(==? )?(?P<query>({assignment_re})|.+)===", add_line)
+
+from scripts.testing import Tester
+refresh_tester = Tester(refresh_eval)
+refresh_tester("asdf").claim(None)
+refresh_tester("==r").claim("Variables refreshed!")
+eval_tester = Tester(cool_eval)
+eval_tester("= 34+1=").claim("= 35")
+eval_tester("= qwer+dfgh=").claim("== dfgh + qwer")
+eval_tester("== random()=").claim(True)
+eval_tester("random(3)=").claim(True)
+symppy_tester = Tester(symppy_eval)
+symppy_tester("x-q+3r-2r==").claim("== -q + r + x")
+add_tester = Tester(add_line)
+add_tester("z=3===").claim("Line saved!")
+add_tester("z=[]===").claim("Line saved!")
+add_tester("z.append(3)===").claim("Line saved!")

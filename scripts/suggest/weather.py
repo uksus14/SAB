@@ -83,5 +83,11 @@ def weather(call: str, place: str=None, lon: float=None, lat: float=None) -> lis
     return [f"Temperature in {place} : {current} °C"]+[f"Temperature range for {weekdays[(current_weekday+i)%7]}: {days_text[i]}" for i in range(len(days_text))]
 
 from scripts.suggestion import Suggest
-
 weather = Suggest(fr"{pattern_or(*all_ways('weather', 'погода', 'temp', 'темп'))}( (?P<place>\p{{L}}+)| (?P<lon>-?\d+\.\d+),? (?P<lat>-?\d+\.\d+))?", weather)
+
+from scripts.testing import Tester
+weather_tester = Tester(weather)
+weather_tester("weather").claim(True)
+weather_tester("temp london").claim(True)
+weather_tester("погода корея").claim(True)
+weather_tester("темп herts").claim(True)

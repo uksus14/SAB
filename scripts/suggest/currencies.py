@@ -65,6 +65,7 @@ convert_tester("asdf").claim(None)
 convert_tester("12.4 dollar to euros").claim(r"= \d+\.?\d* eur")
 convert_tester("1 d to som").claim(r"= \d+\.?\d* kgs")
 convert_tester("100 k to p").claim(r"= \d+\.?\d* gbp")
+#TODO more tests for dates
 
 USD = CurrencyCode("usd", "us", "dollar", "dol", "d", "доллар", "долларов", "доллара", "доллару", "долларах", "дол", "д")
 RUB = CurrencyCode("rub", "ru", "ruble", "r", "рубль", "рублей", "рублях", "рублям", "рубля", "рублю", "руб", "р")

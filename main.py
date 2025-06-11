@@ -10,11 +10,10 @@ app = Flask(__name__)
 from scripts.testing import Tester
 @app.route("/test")
 def test():
-    verbose = not (request.args.get("verbose", "false").lower().strip() in ["false", "0", "no"])
+    verbose = not (request.args.get("verbose", "").lower().strip() in ["false", "0", "no"])
     log = Tester.test_all(verbose=verbose)
     if not verbose: return render_template("message.html", message="Tests done successfully!")
     return render_template("test.html", testers=log, success=all(line["success"] for line in log))
-    
 
 @app.route('/')
 def search():
@@ -31,4 +30,4 @@ def opensearch(): return app.send_static_file("opensearch.xml")
 def menu(): return render_template('menu.html', pages=URLCode.menu_data())
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)

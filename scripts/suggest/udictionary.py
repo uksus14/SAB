@@ -7,3 +7,8 @@ def udictionary(call: str, query: str) -> list[str]:
 
 from scripts.suggestion import Suggest
 udictionary = Suggest(r"(?P<query>.+) !?(ud|urban)", udictionary, cache=True, page=True)
+
+from scripts.testing import Tester
+udict_tester = Tester(udictionary)
+udict_tester("moron ud").claim(True)
+udict_tester("rizz !urban").claim(True)
