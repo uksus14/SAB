@@ -31,4 +31,4 @@ def opensearch(): return app.send_static_file("opensearch.xml")
 def menu(): return render_template('menu.html', pages=URLCode.menu_data())
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=True)

@@ -2,6 +2,9 @@
 {% block title %}Tests{% endblock %}
 {% block message %}Tests {{'✅' if success else '❌'}}{% endblock %}
 {% block style %}
+.tester>summary {
+    font-size: 1.8rem;
+}
 table {
     border-collapse: collapse;
     margin: 10px 0;
@@ -17,8 +20,8 @@ td.label {
 {% endblock %}
 {% block main %}
 {% for tester in testers %}
-<div class="tester">
-    <h3>{{'✅' if tester.success else '❌'}} {{tester.funcname}}</h3>
+<details class="tester" {{ '' if tester.success else 'open' }}>
+    <summary>{{'✅' if tester.success else '❌'}} {{tester.funcname}}</summary>
     <ul>
         {% for test in tester.tests %}
         <li>
@@ -30,7 +33,7 @@ td.label {
                 </tr>
                 <tr>
                     {% if test.answer|length > 100 %}
-                        <details>
+                        <details {{ '' if tester.success else 'open' }}>
                             <summary>Answer: </summary>
                             {{test.answer}}
                         </details>
@@ -44,6 +47,6 @@ td.label {
         <hr>
         {% endfor %}
     </ul>
-</div>
+</details>
 {% endfor %}
 {% endblock %}

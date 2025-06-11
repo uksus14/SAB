@@ -9,12 +9,9 @@ match_history = Search(r"((?P<query>.+) )?!h", match_history)
 
 def history_nonempty(html: str):
     """Checking if is history and history is nonempty"""
-    return True
-    soap = BeautifulSoup(html, features="html.parcer")
+    soap = BeautifulSoup(html, features="html")
     title = soap.find(id="title").text.lower().strip()
-    with open("super_cool.html", "w") as f:
-        f.write(str(soap.find(id="title")))
-    return title == "history" and len(soap.find("ul").find_all("li")) > 0
+    return "history" in title and len(soap.find("ul").find_all("li")) > 0
         
 from scripts.testing import Tester
 timer_tester = Tester(match_history)
