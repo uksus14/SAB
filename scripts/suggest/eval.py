@@ -47,7 +47,7 @@ def add_line(call: str, query: str, variable: str=None, value: str=None) -> str:
     query = query.replace("^", "**")
     if not cool_eval(call.replace("===", "=")).startswith("= "): return "Adding line failed!"
     def persist(line: str) -> bool:
-        match = regex.match(f"^{assignment_re}$", line) or regex.match(r"^(?P<variable>\w+)\..+$", line)
+        match = regex.match(f"^{assignment_re}$", line) or regex.match(r"^(?P<variable>\w+)[.[].+$", line)
         return match is None or match.group("variable") != variable
     if variable is None: persist = lambda l: True
     var_line = eval_strs.data.index("#variables")

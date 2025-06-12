@@ -17,6 +17,9 @@ td.label {
     font-weight: bold;
     background: #f0f0f0;
 }
+details>span {
+    color: red;
+}
 {% endblock %}
 {% block main %}
 {% for tester in testers %}
@@ -33,13 +36,13 @@ td.label {
                 </tr>
                 <tr>
                     {% if test.answer|length > 100 %}
-                        <details {{ '' if tester.success else 'open' }}>
+                        <details {{ '' if tester.success else 'open' }} class="answer">
                             <summary>Answer: </summary>
-                            {{test.answer}}
+                            {{test.answer|safe}}
                         </details>
                     {% else %}
                         <td class="label">Answer:</td>
-                        <td>{{test.answer}}</td>
+                        <td class="answer">{{test.answer|safe}}</td>
                     {% endif %}
                 </tr>
                 {% if test.reason %}

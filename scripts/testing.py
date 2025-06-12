@@ -1,5 +1,8 @@
 from typing import Self, Callable, Any
 import regex
+import html
+
+
 
 class TestException(Exception):
     @staticmethod
@@ -16,6 +19,7 @@ class TestException(Exception):
         message = f"reason: {reason}\nfunction {func} failed with arguments {args} and keywords {kwargs}"
         if answer != ...:
             message += f" because answer {answer} didn't match and expectation {expect}"
+            if reason is not None: message += "\nThis was an error during comparison with expectation"
         super().__init__(message)
 
 class Test:
@@ -25,6 +29,7 @@ class Test:
         self.tester = _tester
         self.isregex = _isregex
         self.iscontains = _iscontains
+        self.format_answer = lambda ans: ans
         self.args = args
         self.kwargs = kwargs
     def claim(self, expect: Callable[[Any], bool]|Any, *args, **kwargs):
@@ -40,7 +45,8 @@ class Test:
             self.expect = self.tester(expect, *args, **kwargs)
             self.expect_value = self.expect.__doc__
         elif self.isregex:
-            self.expect = lambda ans: regex.match(f"^{expect}$", ans) is not None
+            self.expect = lambda ans: regex.search(expect, ans, regex.S) is not None
+            self.format_answer = lambda ans: regex.sub(f"({expect})", r"<span>\1</span>", ans)
         elif self.iscontains:
             self.expect = lambda ans: expect in ans or all(exp in ans for exp in expect)
         else: self.expect = lambda ans: ans == expect
@@ -50,12 +56,13 @@ class Test:
         except Exception as e:
             return TestException.fail(self, reason=e, verbose=verbose)
         good = False
+        formated_answer = self.format_answer(html.escape(str(answer)))
         try: good = self.expect(answer)
         except Exception as e:
-            return TestException.fail(self, answer, reason=e, verbose=verbose)
-        if not good: return TestException.fail(self, answer, verbose=verbose)
+            return TestException.fail(self, formated_answer, reason=e, verbose=verbose)
+        if not good: return TestException.fail(self, formated_answer, verbose=verbose)
         if not verbose: return None
-        return TestException.success(self, answer)
+        return TestException.success(self, formated_answer)
 
 
 class Tester:

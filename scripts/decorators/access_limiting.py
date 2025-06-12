@@ -31,7 +31,7 @@ class AccessLimiter[SR]:
         return wrapper
     def add_access(self, call: str):
         self._slice.append(datetime.now())
-        self.access.data += [{"time": self.slice[-1], "call": call}]
+        self.access.append({"time": self.slice[-1], "call": call})
     @property
     def slice(self) -> list[datetime]:
         if self.period: self._slice = self._slice[bisect(self._slice, datetime.now() - self.period):]

@@ -1,7 +1,5 @@
 from scripts.utils import pattern_or, prefix_pattern
-from spellchecker import SpellChecker
 import requests
-spell_checker = SpellChecker()
 
 def define(call: str, term: str, part: str=None) -> list[dict[str, str]]:
     data = requests.get(f"https://api.dictionaryapi.dev/api/v2/entries/en/{term}").json()

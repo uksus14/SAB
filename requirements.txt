@@ -1,6 +1,5 @@
 user-agent-parser
 currencyconverter
-pyspellchecker
 beautifulsoup4
 googletrans
 requests

@@ -16,7 +16,7 @@ class Search(Action[str|None]):
     @classmethod
     def resolve(cls, call: str) -> Response:
         res = super().resolve(call)
-        cls.history.data += [{"query": call, "time": datetime.now()}]
+        cls.history.append({"query": call, "time": datetime.now()})
         if not isinstance(res, str) or res.startswith("<!DOCTYPE html>"): return res
         return redirect(res) if is_url(res) else render_template("message.html", message=res)
     @classmethod

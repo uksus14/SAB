@@ -13,17 +13,9 @@ timer_regex = r"(?P<timer>timer|таймер)( (?P<min_only>\d+)| (?P<title>.+?)
 from scripts.searching import Search
 timer = Search(timer_regex, timer)
 
-def claim_timer(seconds: int):
-    def claim(html: str):
-        html = html.partition("<script")[2].partition("</script>")[0]
-        re = r"let totalSeconds *= *(?P<seconds>\d+)"
-        return seconds == int(regex.search(re, html).group("seconds"))
-    claim.__doc__ = f"""checking if total_seconds in timer is {seconds}"""
-    return claim
-        
 from scripts.testing import Tester
-timer_tester = Tester(timer, claim_timer)
+timer_tester = Tester(timer, regex_expect=True)
 timer_tester("asdfasdf").claim(None)
-timer_tester("timer ").claim(0)
-timer_tester("timer 14").claim(14*60)
-timer_tester("timer 2h 4 min 14 seconds").claim(2*3600+4*60+14)
+timer_tester("timer ").claim(r"let totalSeconds *= *0")
+timer_tester("timer 14").claim(fr"let totalSeconds *= *{14*60}")
+timer_tester("timer 2h 4 min 14 seconds").claim(fr"let totalSeconds *= *{2*3600+4*60+14}")
