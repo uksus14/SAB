@@ -31,6 +31,17 @@ def refresh_eval(call: str) -> str:
     eval_strs._data = prev
     return "There was a problem with Variables!"
 
+def search_eval(call: str, query: str) -> list[str]:
+    ans = []
+    if not regex.match(r"^\/.*\/$", query): mm = lambda match: query in match
+    else: mm = lambda match:regex.search(query[1:-1], match)
+    for line in eval_strs.data[eval_strs.data.index("#constants"):]:
+        match = regex.match(assignment_re, line, flags=regex.IGNORECASE)
+        if not match: continue
+        match = match.group("variable")
+        if mm(match): ans.append(f"= {match}")
+    return ans or "No variables found!"
+
 def cool_eval(call: str, query: str, variable: str=None, value: str=None) -> str:
     query = query.replace("^", "**")
     func = exec if variable else eval
@@ -57,6 +68,7 @@ def add_line(call: str, query: str, variable: str=None, value: str=None) -> str:
 assignment_re = r"(?P<variable>.*[^!=><])=(?P<value>[^=].*)"
 from scripts.suggestion import Suggest
 refresh_eval = Suggest(r"==r", refresh_eval)
+search_eval = Suggest(r"(?P<query>.+)=\?", search_eval, page=True)
 cool_eval = Suggest(fr"(==? )?(?P<query>({assignment_re})|.+)=", cool_eval)
 symppy_eval = Suggest(r"(==? )?(?P<query>.+)==", symppy_eval)
 add_line = Suggest(fr"(==? )?(?P<query>({assignment_re})|.+)===", add_line)
@@ -65,6 +77,13 @@ from scripts.testing import Tester
 refresh_tester = Tester(refresh_eval)
 refresh_tester("asdf").claim(None)
 refresh_tester("==r").claim("Variables refreshed!")
+def not_novarfound(ans):
+    """checking if the answer is not 'No variables found!'"""
+    return ans and ans != "No variables found!"
+search_tester = Tester(search_eval)
+search_tester("el=?").claim(not_novarfound)
+search_tester("/^el.+$/=?").claim(not_novarfound)
+search_tester("qwertyu=?").claim("No variables found!")
 eval_tester = Tester(cool_eval)
 eval_tester("= 34+1=").claim("= 35")
 eval_tester("= qwer+dfgh=").claim("== dfgh + qwer")

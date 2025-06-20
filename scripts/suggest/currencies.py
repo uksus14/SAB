@@ -50,10 +50,12 @@ def convert_currencies(call: str, amount: float, fro: str, to: str=None, day: in
         fro = "usd"
         amount /= closest_kgs_date(date)
     try: res = convert.convert(amount, fro.upper(), to.upper(), date)
-    except RateNotFoundError:
-        if date is None: return None
+    except RateNotFoundError as e:
+        if date is None: raise e
         try: res = convert.convert(amount, fro.upper(), to.upper())
-        except: return None
+        except RateNotFoundError: return f"Rate for {fro} to {to} not found"
+    except ValueError:
+        return None if to not in call else f"Rate for {fro} to {to} not found"
     return f"= {res:.2f} {tto}"
 
 from scripts.suggestion import Suggest
@@ -62,10 +64,10 @@ convert_currencies = Suggest(r"(?P<amount>\d+\.?\d*) (?P<fro>\p{L}+)( (to|к|в)
 from scripts.testing import Tester
 convert_tester = Tester(convert_currencies, regex_expect=True)
 convert_tester("asdf").claim(None)
-# convert_tester("12.4 dollar to euros").claim(r"= \d+\.?\d* eur")
-# convert_tester("1 d to som").claim(r"= \d+\.?\d* kgs")
-# convert_tester("100 k to p").claim(r"= \d+\.?\d* gbp")
-# convert_tester("9 gb to rub").claim(r"= \d+\.?\d* rub")
+convert_tester("12.4 dollar to euros").claim(r"= \d+\.?\d* eur")
+convert_tester("1 d to som").claim(r"= \d+\.?\d* kgs")
+convert_tester("100 k to p").claim(r"= \d+\.?\d* gbp")
+convert_tester("9 gb to rub").claim(r"= \d+\.?\d* rub")
 #TODO more tests for dates
 
 USD = CurrencyCode("usd", "us", "dollar", "dol", "d", "доллар", "долларов", "доллара", "доллару", "долларах", "дол", "д")

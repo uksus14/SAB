@@ -1,6 +1,7 @@
 clear
 sab
 add_line
+search_eval
 symppy_eval
 cool_eval
 refresh_eval
