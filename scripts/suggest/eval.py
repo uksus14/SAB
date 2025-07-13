@@ -16,6 +16,12 @@ def random(l=None, r=None) -> int|float:
     if l is None: return rand_mod.random()
     if r is None: return rand_mod.randint(1, l)
     return rand_mod.randint(l, r)
+def count(*args):
+    ans = {}
+    for arg in args:
+        if arg in ans: ans[arg] += 1
+        else: ans[arg] = 1
+    return ans
 """
 
 eval_strs = EvalStrVar.create("eval", default_eval.split("\n"), ext="py", serializer=Serializers.line_splitter())
@@ -23,6 +29,9 @@ eval_strs = EvalStrVar.create("eval", default_eval.split("\n"), ext="py", serial
 def globs():
     import variables.eval
     return variables.eval.__dict__
+
+def normalize_eval(query: str) -> str:
+    return query.replace("^", "**").replace("->", ":")
 
 def refresh_eval(call: str) -> str:
     prev = eval_strs.data
@@ -42,20 +51,25 @@ def search_eval(call: str, query: str) -> list[str]:
         if mm(match): ans.append(f"= {match}")
     return ans or "No variables found!"
 
-def cool_eval(call: str, query: str, variable: str=None, value: str=None) -> str:
-    query = query.replace("^", "**")
-    func = exec if variable else eval
-    try: return f"= {func(query, globals=globs())}"
-    except: return symppy_eval(call+"=")
-
+def cool_eval(call: str, query: str, variable: str=None, value: str=None, normalize=True) -> str:
+    query = normalize_eval(query)
+    if value:
+        value = normalize_eval(value)
+        try: return f"= {eval(value, globals=globs())}"
+        except: pass
+    try: return f"= {eval(query, globals=globs())}"
+    except: pass
+    normalized = symppy_eval(call+"=")
+    if not normalize or normalized == "not computable": return normalized
+    return f"= {eval(normalized[3:], globals=globs())}"
 def symppy_eval(call: str, query: str) -> str:
-    query = query.replace("^", "**")
+    query = normalize_eval(query)
     try: exp = parse_expr(query, transformations=standard_transformations + (implicit_multiplication,))
     except: return "not computable"
     return f"== {exp}"
 
 def add_line(call: str, query: str, variable: str=None, value: str=None) -> str:
-    query = query.replace("^", "**")
+    query = normalize_eval(query)
     if not cool_eval(call.replace("===", "=")).startswith("= "): return "Adding line failed!"
     def persist(line: str) -> bool:
         match = regex.match(f"^{assignment_re}$", line) or regex.match(r"^(?P<variable>\w+)[.[].+$", line)
@@ -65,7 +79,7 @@ def add_line(call: str, query: str, variable: str=None, value: str=None) -> str:
     eval_strs.data = eval_strs.data[:var_line]+list(filter(persist, eval_strs.data[var_line:]))+[query]
     return "Line saved!"
 
-assignment_re = r"(?P<variable>.*[^!=><])=(?P<value>[^=].*)"
+assignment_re = r"(?P<variable>.*?[^!=><])=(?P<value>[^=].*)"
 from scripts.suggestion import Suggest
 refresh_eval = Suggest(r"==r", refresh_eval)
 search_eval = Suggest(r"(?P<query>.+)=\?", search_eval, page=True)

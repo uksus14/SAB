@@ -35,6 +35,7 @@ powerpoint = URLCode("Google Slides", "https://docs.google.com/presentation/", "
 excel = URLCode("Google Sheets", "https://docs.google.com/spreadsheets/", "sheets.png", "excel", "sheets")
 word = URLCode("Google Docs", "https://docs.google.com/document/", "docs.png", "word", "docs")
 translator = URLCode("Google Translator", "https://translate.google.com/?hl=en&sl=auto&tl=en&op=translate", "translate.webp", "translate", "!t", "translator", "переводчик", "пере")
+two_gis = URLCode("2Gis", r"https://2gis.kg/bishkek/directions/points/74.613519%2C42.852692%3B70030076446486931?m=74.613519%2C42.852692%2F16", "", "2gis", "2гис")
 mysis = URLCode("Queen Mary Mysis", "https://mysis.qmul.ac.uk/", "mysis.webp", "mysis")
 menu = URLCode("Menu", "menu", "menu.png", "menu")
 test = URLCode("Tests", "test", "menu.png", "test")

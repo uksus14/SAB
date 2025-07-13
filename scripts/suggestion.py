@@ -3,6 +3,7 @@ from scripts.utils import approx_time, page_size
 from typing import Callable, Tuple
 from scripts.actions import Action
 from datetime import timedelta
+import requests
 
 class Suggest(Action[list[str]|str|None]):
     order = None
@@ -16,7 +17,9 @@ class Suggest(Action[list[str]|str|None]):
             self.action = Pager(self.action)
     @classmethod
     def resolve(cls, call) -> list[str]:
-        res = super().resolve(call)
+        try: res = super().resolve(call)
+        except requests.ConnectionError:
+            res = "No internet connection"
         if not isinstance(res, list): res = [str(res)]
         return res[:page_size()+1]
     def __call__(self, call, *args, **kwargs):

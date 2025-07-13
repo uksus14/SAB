@@ -19,4 +19,6 @@ def llmask(call: str, query: str) -> list[str]:
     return response.choices[0].message.content.strip()
 
 from scripts.suggestion import Suggest
-llmask = Suggest(r"(?P<query>.+)!!\?", llmask, cache=True, limit=True)
+from scripts.decorators import AccessLimiter
+from datetime import timedelta
+llmask = Suggest(r"(?P<query>.+)!!\?", llmask, cache=True, limit=AccessLimiter.prep(50, timedelta(days=1), timedelta(microseconds=100)))
