@@ -6,6 +6,7 @@ import regex
 default_eval = """#Eval variables and functions here
 from math import *
 import random as rand_mod
+import hashlib
 from random import *
 def choice(*choices):
     for _ in [", ", ",", " "]:

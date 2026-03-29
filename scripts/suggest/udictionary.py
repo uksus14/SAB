@@ -6,7 +6,7 @@ def udictionary(call: str, query: str) -> list[str]:
     return [df.find("div", class_="meaning").text for df in soup.find_all("div", class_="definition")] or "No meaning found"
 
 from scripts.suggestion import Suggest
-udictionary = Suggest(r"(?P<query>.+) !?(ud|urban)", udictionary, cache=True, page=True)
+udictionary = Suggest(r"(?P<query>.+) !?(ud|urban|meaning)", udictionary, cache=True, page=True)
 
 from scripts.testing import Tester
 udict_tester = Tester(udictionary)

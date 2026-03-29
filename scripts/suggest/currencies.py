@@ -18,10 +18,15 @@ class CurrencyCode(Code[str]):
         if call is None: return cls.DEFAULT_CURRENCY
         return super().resolve(call) or call
 
+headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
 def get_current_kgs() -> float:
-    url = "https://wise.com/ru/currency-converter/usd-to-kgs-rate?amount=1"
-    soup = BeautifulSoup(requests.get(url).text, features="html.parser")
-    return float(soup.find(id="target-input")["value"].replace(",", ".", count=1))
+    url = "https://uk.investing.com/currencies/usd-kgs"
+    soup = BeautifulSoup(requests.get(url, headers=headers).text, features="html.parser")
+    return float(soup.find(class_="text-5xl/9 font-bold text-[#232526] md:text-[42px] md:leading-[60px]").text)
+def get_current_kgs() -> float:
+    url = "https://www.akchabar.kg/en/currency-rate/usd"
+    soup = BeautifulSoup(requests.get(url, headers=headers).text, features="html.parser")
+    return float(soup.find("div", class_="flex gap-2 mb-2 text-xl font-semibold").find("span").text)
 
 def update_kgs(usd_to_kgs: USD2KGSVar):
     now = datetime.now()
