@@ -8,9 +8,9 @@
       "search_provider": {
         "name": "SAB",
         "keyword": "sab",
-        "favicon_url": "http://127.0.0.1:9999/static/favicon.ico",
-        "search_url": "http://127.0.0.1:9999/?q={searchTerms}",
-        "suggest_url": "http://127.0.0.1:9999/suggest?q={searchTerms}",
+        "favicon_url": "http://127.0.0.1:14926/static/favicon.ico",
+        "search_url": "http://127.0.0.1:14926/?q={searchTerms}",
+        "suggest_url": "http://127.0.0.1:14926/suggest?q={searchTerms}",
         "encoding": "UTF-8",
         "is_default": true
       }
