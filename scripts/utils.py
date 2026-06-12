@@ -82,4 +82,4 @@ def prefix_pattern(word: str) -> str:
 
 def match_url(query: str) -> regex.Match|None:
     return regex.search(f"^{url_pattern}$", query, flags=regex.IGNORECASE)
-url_pattern = fr"(https?://)?(ww(w|2)\.)?(?P<url>[A-Za-z0-9_.\-~]+?\.{pattern_or(*top_level_domains)}(/.*)?(\?.*)?(#.*)?)"
+url_pattern = fr"(https?://)?(ww(w|2)\.)?(?P<url>[A-Za-z0-9_.\-~]+?\.{pattern_or(*top_level_domains)}(/.*)?(\.*)?(#.*)?)"

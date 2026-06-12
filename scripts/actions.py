@@ -22,6 +22,7 @@ class Action[AR]:
     def __init__(self, action: Callable[..., AR], *, pattern: str|None=None, cache: bool|timedelta=False, limit: bool|Callable[[Callable, str], AccessLimiter]=False):
         self.pattern = pattern
         self.funcname = action.__name__
+        if self.funcname.endswith("_inner"): self.funcname = self.funcname[:-6]
         if self.order is None: self._list.append(self)
         else: self.add(self)
         self.__full_list.append(self)

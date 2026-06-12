@@ -19,8 +19,11 @@ class Search(Action[ResponseReturnValue|None]):
     def resolve(cls, call: str) -> ResponseReturnValue|None:
         res = super().resolve(call)
         cls.history.append({"query": call, "time": datetime.now()})
-        if not isinstance(res, str) or res.startswith("<!DOCTYPE html>"): return res
-        return redirect(res) if match_url(res) or res.startswith(BASE_URL) else render_template("message.html", message=res)
+        if isinstance(res, str) and not res.startswith("<!DOCTYPE html>"):
+            if match_url(res) or res.startswith(BASE_URL):
+                return redirect(res)
+            return render_template("message.html", message=res)
+        return res
     @classmethod
     def match_history(cls, query: str|None=None) -> Iterator[HistoryEntry]:
         if query is None: return reversed(Search.history.data)
