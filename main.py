@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, render_template, redirect
+from flask.typing import ResponseReturnValue
 from scripts.suggest.eval import cool_eval
 from scripts.search.menu import URLCode
 from scripts.utils import prep_query
@@ -11,19 +12,23 @@ app = Flask(__name__)
 
 from scripts.testing import Tester
 @app.route("/test")
-def test():
+def test() -> ResponseReturnValue:
     verbose = not (request.args.get("verbose", "").lower().strip() in ["false", "0", "no"])
-    log = Tester.test_all(verbose=verbose)
-    if not verbose: return render_template("message.html", message="Tests done successfully!")
+    if not verbose:
+        Tester.test_all(verbose=False)
+        return render_template("message.html", message="Tests done successfully!")
+    log = Tester.test_all(verbose=True)
     return render_template("test.html", testers=log, success=all(line["success"] for line in log))
 
 @app.route('/')
-def search():
+def search() -> ResponseReturnValue:
     query = request.args.get("q", None)
     if query is None: return redirect('/menu')
-    return Search.resolve(prep_query(query))
+    res = Search.resolve(prep_query(query))
+    if res is None: return render_template("message.html", message="Failed to receive an answer")
+    return res
 @app.route('/suggest')
-def suggest():
+def suggest() -> ResponseReturnValue:
     Variable.do_updates()
     orig: str = request.args.get("q", "")
     return jsonify([orig, Suggest.resolve(prep_query(orig))])
@@ -46,7 +51,7 @@ def vscode():
 @app.route("/api/eval", methods=['POST'])
 def pyeval():
     query = request.data.decode().strip('=')+'='
-    return jsonify({"status": "201", "result": cool_eval(query).strip('= ')})
+    return jsonify({"status": "201", "result": str(cool_eval(query)).strip('= ')})
 
 if __name__ == '__main__':
     app.run(debug=False, port=PORT)

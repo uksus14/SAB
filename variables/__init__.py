@@ -7,26 +7,26 @@ folder = Path(__file__).parent
 
 class Variable[AV]:
     objects: list[Self] = []
-    def __new__(cls, name: str, ext: str="json", update: Callable[[Self], Any]=None, serializer: Serializers=None):
+    def __new__(cls, name: str, *args, **kwargs):
         for object in cls.objects:
             if object.name == name: return object
         instance = super().__new__(cls)
         cls.objects.append(instance)
         return instance
-    def __init__(self, name: str, ext: str="json", update: Callable[[Self], Any]=None, serializer: Serializers=None):
+    def __init__(self, name: str, ext: str="json", update: Callable[[Self], Any]|None=None, serializer: Serializers|None=None):
         self.name = name
         self.path = folder / f"{name}.{ext}"
         if update is None: update = lambda var:None
         self.update = lambda: update(self)
         self.serializer = Serializers.default() if serializer is None else serializer
-        self.data: AV
-        self._data: AV = None
+        self.data: list[AV]
+        self._data: list[AV]|None = None
         
     @classmethod
-    def create(cls, name: str, default: AV, ext: str="json", update: Callable[[Self], Any]=None, serializer: Serializers=None):
+    def create(cls, name: str, default: list[AV]|None=None, ext: str="json", update: Callable[[Self], Any]|None=None, serializer: Serializers|None=None):
         instance = cls(name, ext, update, serializer)
         if instance.path.exists(): instance.refresh()
-        else: instance.data = default
+        else: instance.data = default or []
         instance.update()
         return instance
     def append(self, item: Any):
@@ -49,7 +49,12 @@ class Variable[AV]:
             object.update()
 
 
-USD2KGSVar = Variable[list[dict[str, float|datetime]]]
-HistoryVar = Variable[list[dict[str, str|datetime]]]
-AccessVar = Variable[list[dict[str, datetime|str]]]
-EvalStrVar = Variable[list[str]]
+from typing import TypedDict
+USD2KGSEntry = TypedDict('USD2KGSEntry', {"time": datetime, "rate": float})
+HistoryEntry = TypedDict('HistoryEntry', {"query": str, "time": datetime})
+AccessEntry = TypedDict('AccessEntry', {"call": str, "time": datetime})
+
+USD2KGSVar = Variable[USD2KGSEntry]
+HistoryVar = Variable[HistoryEntry]
+AccessVar = Variable[AccessEntry]
+EvalStrVar = Variable[str]

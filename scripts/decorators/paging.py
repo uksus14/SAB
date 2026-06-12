@@ -7,7 +7,7 @@ def pagify(data: list[str], call: str, page: int) -> list[str]:
     return data[page*p_size:(page+1)*p_size] + [f"{call}-{'-'*page}"]
 
 class Pager:
-    def __init__(self, func: Callable[[str], list[str]]) -> Callable[[str], list[str]]:
+    def __init__(self, func: Callable[[str], list[str]]):
         self.func = func
     def __call__(self, call: str, **kwargs) -> list[str]:
         call = call.strip()

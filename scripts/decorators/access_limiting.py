@@ -1,8 +1,8 @@
 from scripts.utils import approx_time, approx_time_re
 from scripts.message import MessageList
 from datetime import datetime, timedelta
-from typing import Callable, Tuple
 from variables import AccessVar
+from typing import Callable
 from bisect import bisect
 
 class AccessLimiter[SR]:
@@ -14,19 +14,19 @@ class AccessLimiter[SR]:
                            too_fast=fr"Please wait (?P<wait>{approx_time_re}) before making another request",
                            reached_limit=fr"You have reached the limit of (?P<max_count>\d+) requests per (?P<period>{approx_time_re})\. first request was (?P<first_req>{approx_time_re}) ago\. Wait or type 'reset\?'")
     full_access = []
-    def __init__(self, func: Callable[[str, *Tuple[str, ...]], SR], funcname: str=None, max_count: int=None, period: timedelta=None, min_time: timedelta|None = timedelta(seconds=2)):
+    def __init__(self, func: Callable[..., SR], funcname: str|None=None, max_count: int|None=None, period: timedelta|None=None, min_time: timedelta|None = timedelta(seconds=2)):
         self.func = func
         self.funcname = funcname or func.__name__
         self.max_count = max_count
         self.period = period
         self.min_time = min_time
-        self.access = AccessVar.create(self.var_name.format(self.funcname), [])
+        self.access = AccessVar.create(self.var_name.format(self.funcname))
         slice = [entry["time"] for entry in self.access.data]
         self._slice = []
         if self.period: self._slice = slice[bisect(slice, datetime.now()-self.period):]
     @classmethod
-    def prep(cls, max_count: int=None, period: timedelta=None, min_time: timedelta|None = timedelta(seconds=2)):
-        def wrapper(func: Callable[[str, *Tuple[str, ...]], SR], funcname: str=None):
+    def prep(cls, max_count: int|None=None, period: timedelta|None=None, min_time: timedelta|None = timedelta(seconds=2)):
+        def wrapper(func: Callable[..., SR], funcname: str|None=None):
             return cls(func, funcname, max_count, period, min_time)
         return wrapper
     def add_access(self, call: str):
@@ -49,7 +49,7 @@ class AccessLimiter[SR]:
             err = self.messages.access.format(num=len(self.slice), period=approx_time(self.period), all=len(self.access.data))
         elif self.slice and self.min_time and datetime.now() - self.slice[-1] < self.min_time:
             err = self.messages.too_fast.format(wait=approx_time(self.min_time))
-        elif self.max_count and len(self.slice) >= self.max_count:
+        elif self.period and self.max_count and len(self.slice) >= self.max_count:
             err = self.messages.reached_limit.format(max_count=self.max_count, period=approx_time(self.period), first_req=approx_time(self.slice[0]))
         if err: return err
         self.add_access(call)

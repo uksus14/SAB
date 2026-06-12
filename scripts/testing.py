@@ -1,21 +1,27 @@
-from typing import Self, Callable, Any
+from typing import Self, Callable, Any, TypedDict, overload, Literal
 import regex
 import html
 
-
+TestExceptionResult = TypedDict('TestExceptionResult', {"args": tuple, "kwargs": dict[str, Any], "answer": str, "expect": str, "reason": Exception|str|None, "success": bool})
 
 class TestException(Exception):
     @staticmethod
-    def generic(test: 'Test', answer, success: bool, reason: Exception=None):
+    def generic(test: 'Test', answer, success: bool, reason: Exception|None=None) -> TestExceptionResult:
         return {"args": test.args, "kwargs": test.kwargs, "answer": str(answer), "expect": str(test.expect_value), "reason": reason, "success": success}
     @classmethod
     def success(cls, test: 'Test', answer):
         return cls.generic(test, answer, True)
     @classmethod
-    def fail(cls, test: 'Test', answer=..., *, reason: Exception=None, verbose=False):
+    @overload
+    def fail(cls, test: 'Test', answer: Any=..., *, reason: Exception|None=None, verbose: Literal[False]) -> None: ...
+    @classmethod
+    @overload
+    def fail(cls, test: 'Test', answer: Any=..., *, reason: Exception|None=None, verbose: Literal[True]) -> TestExceptionResult: ...
+    @classmethod
+    def fail(cls, test: 'Test', answer: Any=..., *, reason: Exception|None=None, verbose=False) -> TestExceptionResult|None:
         if not verbose: raise cls(test.funcname, test.args, test.kwargs, test.expect_value, answer, reason)
-        return cls.generic(test, answer, False, str(reason) if reason else None)
-    def __init__(self, func, args, kwargs, expect, answer=..., reason=None):
+        return cls.generic(test, answer, False, reason)
+    def __init__(self, func, args, kwargs, expect, answer: Any=..., reason=None):
         message = f"reason: {reason}\nfunction {func} failed with arguments {args} and keywords {kwargs}"
         if answer != ...:
             message += f" because answer {answer} didn't match and expectation {expect}"
@@ -29,7 +35,7 @@ class Test:
         self.tester = _tester
         self.isregex = _isregex
         self.iscontains = _iscontains
-        self.format_answer = lambda ans: ans
+        self.format_answer: Callable[[str], str] = lambda ans: ans
         self.args = args
         self.kwargs = kwargs
     def claim(self, expect: Callable[[Any], bool]|Any, *args, **kwargs):
@@ -51,6 +57,10 @@ class Test:
             self.expect = lambda ans: expect in ans or all(exp in ans for exp in expect)
         else: self.expect = lambda ans: ans == expect
         return self
+    @overload
+    def test(self, verbose: Literal[False]) -> None: ...
+    @overload
+    def test(self, verbose: Literal[True]) -> TestExceptionResult: ...
     def test(self, verbose=False):
         try: answer = self.func(*self.args, **self.kwargs)
         except Exception as e:
@@ -65,6 +75,7 @@ class Test:
         return TestException.success(self, formated_answer)
 
 
+TesterResult = TypedDict('TesterResult', {"funcname": str, "tests": list[TestExceptionResult], "success": bool})
 class Tester:
     testers: list[Self] = []
     def __init__(self, func, tester=None, regex_expect: bool=False, contains_expect: bool=False):
@@ -78,13 +89,28 @@ class Tester:
         self.tests: list[Test] = []
         self.testers.append(self)
     @classmethod
-    def test_all(cls, verbose=False) -> list[list[dict[str, Any]]]|None:
-        logs = [tester.test(verbose) for tester in cls.testers]
+    @overload
+    def test_all(cls, verbose: Literal[False]) -> None: ...
+    @classmethod
+    @overload
+    def test_all(cls, verbose: Literal[True]) -> list[TesterResult]: ...
+    @classmethod
+    def test_all(cls, verbose=False) -> list[TesterResult]|None:
+        if verbose is False:
+            logs = [tester.test(False) for tester in cls.testers]
+            return
+        logs = [tester.test(True) for tester in cls.testers]
         return logs if verbose else None
-    def test(self, verbose=False) -> list[dict[str, Any]]|None:
-        log = [test.test(verbose) for test in self.tests]
-        if not verbose: return
-        return {"funcname": self.funcname, "tests": log, "success": all(line["success"] for line in log)}
+    @overload
+    def test(self, verbose: Literal[False]) -> None: ...
+    @overload
+    def test(self, verbose: Literal[True]) -> TesterResult: ...
+    def test(self, verbose=False) -> TesterResult|None:
+        if verbose is False:
+            [test.test(False) for test in self.tests]
+            return
+        log = [test.test(True) for test in self.tests]
+        return TesterResult(funcname=self.funcname, tests=log, success=all(line["success"] for line in log))
     def __call__(self, *args, **kwargs):
         self.tests.append(Test(*args, _func=self.func, _funcname=self.funcname, _tester=self.tester, _isregex=self.regex_expect, _iscontains=self.contains_expect, **kwargs))
         return self.tests[-1]

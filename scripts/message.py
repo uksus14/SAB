@@ -3,11 +3,11 @@ import regex
 
 class Message:
     objects: dict[str, Self] = {}
-    def __init__(self, name: str, pattern_temp: str, template: str=None):
+    def __init__(self, name: str, pattern_temp: str, template: str|None=None):
         self.name = name
         if template is None:
             recursive = lambda p: fr"\{p[0]}((?>[^{p}]+|(?R))*)\{p[1]}"
-            template = regex.sub(r"\(\?P<(?P<name>\w+)>[^()]*"+recursive("()")+"[^()]*\)", r"{\g<name>}", pattern_temp)
+            template = regex.sub(r"\(\?P<(?P<name>\w+)>[^()]*"+recursive("()")+r"[^()]*\)", r"{\g<name>}", pattern_temp)
             template = regex.sub(r"\\(.)", r"\1", template)
         self.pattern = f"^{pattern_temp}$"
         self.template = template
@@ -23,13 +23,13 @@ class Message:
         return self.template
 
 class MessageList:
-    def __init__(self, **messages: Message|str):
-        self.messages = messages
-        if isinstance(next(iter(self), None), Message): return
-        self.messages = {name: Message(name, message) for name, message in self.messages.items()}
+    def __init__(self, **messages: str):
+        self.messages = {name: Message(name, message) for name, message in messages.items()}
     @classmethod
     def all(cls) -> Self:
-        return cls(**Message.objects)
+        ans = cls()
+        ans.messages = Message.objects
+        return ans
     def match(self, call: str) -> Message|None:
         for message in self:
             res = message.match(call)
@@ -40,4 +40,4 @@ class MessageList:
     def __repr__(self) -> str:
         return f"MessageList({', '.join(map(str, self))})"
     def __getattr__(self, name: str) -> Message:
-        return self.messages.get(name)
+        return self.messages[name]

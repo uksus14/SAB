@@ -7,7 +7,8 @@ import flask
 import regex
 
 def ischrome() -> bool:
-    return user_agent_parser.Parser(flask.request.headers.get('User-Agent'))()[0] == "Chrome"
+    ua = flask.request.headers.get('User-Agent')
+    return ua is not None and user_agent_parser.Parser(ua)()[0] == "Chrome"
 
 def page_size() -> int:
     if ischrome():
@@ -33,9 +34,11 @@ def approx_time(time: timedelta|datetime) -> str:
     if num != 1: word += 's'
     return f"{num} {word}"
 
-def resolve_date(day: int=None, month: int=None, year: int=None) -> datetime|None:
+def resolve_date(day: int|None=None, month: int|None=None, year: int|None=None) -> datetime|None:
     if day is None: return None
     now = datetime.now()
+    if month is None:
+        month = now.month
     if year is None:
         year = now.year
         if month > now.month or (month == now.month and day > now.day): year -= 1
@@ -55,7 +58,7 @@ def same_keys_find(text: str, codes: list[str]) -> str|None:
     for d in [{}, ru_en, en_ru]:
         text = translit(text, d)
         if text in codes: return text
-    return False
+    return None
 
 def prep_query(query: str) -> str:
     query = query.strip()
@@ -64,8 +67,8 @@ def prep_query(query: str) -> str:
     return query
 
 def normalize_url(url: str) -> str:
-    if not is_url(url): return url
-    return regex.match(f"^{url_pattern}$", url, regex.IGNORECASE).group("url")
+    m = match_url(url)
+    return m.group("url") if m else url
 
 def all_ways(*codes: str) -> list[str]:
     ways = lambda code:[code, translit(code, en_ru), translit(code, ru_en)]
@@ -77,7 +80,6 @@ def pattern_or(*codes: str, safe: bool=True) -> str:
 def prefix_pattern(word: str) -> str:
     return "(".join(word[:-1])+word[-1]+"?"+")?"*(len(word)-2)
 
-def is_url(query: str) -> bool:
-    return regex.search(f"^{BASE_URL}|{url_pattern}$", query, flags=regex.IGNORECASE) is not None
-
+def match_url(query: str) -> regex.Match|None:
+    return regex.search(f"^{url_pattern}$", query, flags=regex.IGNORECASE)
 url_pattern = fr"(https?://)?(ww(w|2)\.)?(?P<url>[A-Za-z0-9_.\-~]+?\.{pattern_or(*top_level_domains)}(/.*)?(\?.*)?(#.*)?)"

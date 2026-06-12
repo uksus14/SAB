@@ -1,8 +1,7 @@
 from scripts.utils import ischrome
 from flask import render_template
-import regex
 
-def timer(call: str, min_only: int=0, hour: int=0, min: int=0, sec: int=0, **kwargs):
+def timer_inner(call: str, min_only: int=0, hour: int=0, min: int=0, sec: int=0, **kwargs):
     return render_template("timer.html", ischrome=ischrome(), total_secs=(hour*60+min+min_only)*60+sec, **kwargs)
 
 timer_regex = r"(?P<timer>timer|таймер)( (?P<min_only>\d+)| (?P<title>.+?))??(?P<words>" + \
@@ -11,7 +10,7 @@ timer_regex = r"(?P<timer>timer|таймер)( (?P<min_only>\d+)| (?P<title>.+?)
     r"( (?P<sec>\d+)( ?s| ?с| sec(ond)?s?| сек(унд|унда|унды)?))?)"
 
 from scripts.searching import Search
-timer = Search(timer_regex, timer)
+timer = Search(timer_regex, timer_inner)
 
 from scripts.testing import Tester
 timer_tester = Tester(timer, regex_expect=True)

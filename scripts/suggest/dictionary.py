@@ -1,10 +1,12 @@
 from scripts.utils import pattern_or, prefix_pattern
+from typing import TypedDict
 import requests
 
-def define(call: str, term: str, part: str=None) -> list[dict[str, str]]:
+DictEntry = TypedDict('DictEntry', {"part": str, "definition": str})
+def define_inner(call: str, term: str, part: str|None=None) -> list[DictEntry]|None:
     data = requests.get(f"https://api.dictionaryapi.dev/api/v2/entries/en/{term}").json()
     if isinstance(data, dict): return None
-    res = []
+    res: list[DictEntry] = []
     for word in data:
         for meaning in word["meanings"]:
             meanings = [{"part": meaning["partOfSpeech"], "definition": df["definition"]} for df in meaning["definitions"]]
@@ -14,7 +16,7 @@ def define(call: str, term: str, part: str=None) -> list[dict[str, str]]:
 
 from scripts.actions import Action
 from datetime import timedelta
-define = Action(define, cache=timedelta(days=30))
+define = Action(define_inner, cache=timedelta(days=30))
 
 def define_test(definition: str):
     def claim(ans: list[dict[str, str]]):
@@ -30,14 +32,15 @@ define_tester("asdf !d", "asdf").claim(None)
 define_tester("subservient verb !d", "subservient", "verb").claim(True)
 
 parts = ["noun", "verb", "adjective", "adverb"]
-def dictionary(call: str, query: str, part_slice: str=None) -> list[str]:
+def dictionary(call: str, query: str, part_slice: str|None=None) -> list[str]|str|None:
     part = part_slice and next((part for part in parts if part.startswith(part_slice)))
     define_call = query
     if part is not None: define_call = f"{query} {part}"
     data = define(define_call, term=query, part=part)
     if data is None: return None
+    if isinstance(data, str): return "Dictionary was probably disabled, if not there is a problem with Action"
     return [f'{query} — {entry["part"]}, {entry["definition"]}' for entry in data] or "No definition found!"
- 
+
 from scripts.suggestion import Suggest
 dictionary = Suggest(fr"(?P<query>.+?)( (?P<part_slice>{pattern_or(*[prefix_pattern(part) for part in parts], safe=False)}))? {pattern_or('!d', 'meaning', 'means', 'значение', 'это', 'значит', 'определение')}", dictionary, cache=timedelta(days=30), page=True)
 

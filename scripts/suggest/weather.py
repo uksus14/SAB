@@ -9,10 +9,9 @@ class PlaceCode(Code[tuple[float, float]]):
     _list = []
     MAX_DISTANCE_KM = 50
     @classmethod
-    def closest(cls, coords: tuple[float, float]) -> tuple[str, tuple[float, float]]|None:
+    def closest(cls, coords: tuple[float, float]) -> tuple[str, tuple[float, float]|None]:
         distance, coords, place = min((geodesic(place.value, coords).km, place.value, place.codes[0]) for place in cls._list)
-        if distance > cls.MAX_DISTANCE_KM: return None
-        return place, coords
+        return place, (coords if distance < cls.MAX_DISTANCE_KM else None)
 
 london = PlaceCode((51.522627, -0.049864), "london", "лондон", "mile end", "майл энд")
 hatfield = PlaceCode((51.750057, -0.238140), "hatfield", "хатфилд", "herts", "хертс")
@@ -49,7 +48,7 @@ def approx_coords():
     lat, lon = requests.get("https://ipinfo.io/json").json()["loc"].split(",")
     return float(lat), float(lon)
 
-def weather(call: str, place: str=None, lon: float=None, lat: float=None) -> list[str]:
+def weather_inner(call: str, place: str|None=None, lon: float|None=None, lat: float|None=None) -> list[str]|str:
     if place: coords = PlaceCode.resolve(place)
     elif lon and lat: place, coords = "custom coords", (lon, lat)
     else: place, coords = PlaceCode.closest(approx_coords())
@@ -83,7 +82,7 @@ def weather(call: str, place: str=None, lon: float=None, lat: float=None) -> lis
     return [f"Temperature in {place} : {current} °C"]+[f"Temperature range for {weekdays[(current_weekday+i)%7]}: {days_text[i]}" for i in range(len(days_text))]
 
 from scripts.suggestion import Suggest
-weather = Suggest(fr"{pattern_or(*all_ways('weather', 'погода', 'temp', 'темп'))}( (?P<place>\p{{L}}+)| (?P<lon>-?\d+\.\d+),? (?P<lat>-?\d+\.\d+))?", weather)
+weather = Suggest(fr"{pattern_or(*all_ways('weather', 'погода', 'temp', 'темп'))}( (?P<place>\p{{L}}+)| (?P<lon>-?\d+\.\d+),? (?P<lat>-?\d+\.\d+))?", weather_inner)
 
 from scripts.testing import Tester
 weather_tester = Tester(weather)

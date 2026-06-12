@@ -7,7 +7,7 @@ except FileNotFoundError:
     print("OpenAI key file not found")
     Action.disable["llmask"] = "OpenAI key not found"
 
-def llmask(call: str, query: str) -> list[str]:
+def llmask_inner(call: str, query: str) -> list[str]|str:
     prep = "You are a helpful assistant. Respond with a very short factual answer, ideally one phrase or a few words"
     query = query.strip()+"?"
     response = openai.chat.completions.create(
@@ -16,9 +16,10 @@ def llmask(call: str, query: str) -> list[str]:
         temperature=0.1,
         max_tokens=100,
     )
-    return response.choices[0].message.content.strip()
+    ans = response.choices[0].message.content
+    return ans.strip() if ans is not None else "There was a problem with llm ask"
 
 from scripts.suggestion import Suggest
 from scripts.decorators import AccessLimiter
 from datetime import timedelta
-llmask = Suggest(r"(?P<query>.+)!!\?", llmask, cache=True, limit=AccessLimiter.prep(50, timedelta(days=1), timedelta(microseconds=100)))
+llmask = Suggest(r"(?P<query>.+)!!\?", llmask_inner, cache=True, limit=AccessLimiter.prep(50, timedelta(days=1), timedelta(microseconds=100)))

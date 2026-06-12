@@ -8,7 +8,7 @@ def globs():
     import variables.eval
     return variables.eval.__dict__
 
-globs = globs()
+# globs = globs()
 
 def parse(query: str):
     transformations = standard_transformations + (implicit_multiplication,)

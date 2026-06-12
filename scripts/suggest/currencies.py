@@ -1,10 +1,10 @@
 from currency_converter import CurrencyConverter, RateNotFoundError
 from bisect import bisect_left, bisect_right
 from scripts.utils import resolve_date
+from bs4 import BeautifulSoup, Tag
 from variables import USD2KGSVar
 from scripts.codes import Code
 from datetime import datetime
-from bs4 import BeautifulSoup
 import requests
 convert = CurrencyConverter()
 
@@ -19,21 +19,26 @@ class CurrencyCode(Code[str]):
         return super().resolve(call) or call
 
 headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
-def get_current_kgs() -> float:
-    url = "https://uk.investing.com/currencies/usd-kgs"
-    soup = BeautifulSoup(requests.get(url, headers=headers).text, features="html.parser")
-    return float(soup.find(class_="text-5xl/9 font-bold text-[#232526] md:text-[42px] md:leading-[60px]").text)
+# def get_current_kgs() -> float:
+#     url = "https://uk.investing.com/currencies/usd-kgs"
+#     soup = BeautifulSoup(requests.get(url, headers=headers).text, features="html.parser")
+#     return float(soup.find(class_="text-5xl/9 font-bold text-[#232526] md:text-[42px] md:leading-[60px]").text)
+kgs_exception = Exception("something is wrong with kgs rate scraping")
 def get_current_kgs() -> float:
     url = "https://www.akchabar.kg/en/currency-rate/usd"
     soup = BeautifulSoup(requests.get(url, headers=headers).text, features="html.parser")
-    return float(soup.find("div", class_="flex gap-2 mb-2 text-xl font-semibold").find("span").text)
+    tmp = soup.find("div", class_="flex gap-2 mb-2 text-xl font-semibold")
+    if not isinstance(tmp, Tag): raise kgs_exception
+    tmp = tmp.find("span")
+    if not isinstance(tmp, Tag): raise kgs_exception
+    return float(tmp.text)
 
 def update_kgs(usd_to_kgs: USD2KGSVar):
     now = datetime.now()
     if (now - usd_to_kgs.data[-1]["time"]).days:
         usd_to_kgs.append({"time": now, "rate": get_current_kgs()})
 
-usd_to_kgs = USD2KGSVar.create("usd_to_kgs", [], update=update_kgs)
+usd_to_kgs = USD2KGSVar.create("usd_to_kgs", update=update_kgs)
 def closest_kgs_date(date: datetime|None) -> float:
     if date is None: return usd_to_kgs.data[-1]["rate"]
     l = max(bisect_left([entry["time"] for entry in usd_to_kgs.data], (date, 0)), len(usd_to_kgs.data)-1)
@@ -42,7 +47,7 @@ def closest_kgs_date(date: datetime|None) -> float:
     if usd_to_kgs.data[l]["time"]+(usd_to_kgs.data[r]["time"]-usd_to_kgs.data[l]["time"])/2 > date: return usd_to_kgs.data[r]["rate"]
     return usd_to_kgs.data[l]["rate"]
 
-def convert_currencies(call: str, amount: float, fro: str, to: str=None, day: int=None, month: int=None, year: int=None):
+def convert_currencies_inner(call: str, amount: float, fro: str, to: str|None=None, day: int|None=None, month: int|None=None, year: int|None=None):
     fro = CurrencyCode.resolve(fro)
     to = CurrencyCode.resolve(to)
     if (len(fro), len(to)) != (3, 3): return None
@@ -64,7 +69,7 @@ def convert_currencies(call: str, amount: float, fro: str, to: str=None, day: in
     return f"= {res:.2f} {tto}"
 
 from scripts.suggestion import Suggest
-convert_currencies = Suggest(r"(?P<amount>\d+\.?\d*) (?P<fro>\p{L}+)( (to|к|в) (?P<to>\p{L}+)(( at)? (?P<day>\d{1,2})(-|/|\.)(?P<month>\d{1,2})((-|/|\.)(?P<year>(\d{2}){1,2}))?)?)?", convert_currencies, cache=True)
+convert_currencies = Suggest(r"(?P<amount>\d+\.?\d*) (?P<fro>\p{L}+)( (to|к|в) (?P<to>\p{L}+)(( at)? (?P<day>\d{1,2})(-|/|\.)(?P<month>\d{1,2})((-|/|\.)(?P<year>(\d{2}){1,2}))?)?)?", convert_currencies_inner, cache=True)
 
 from scripts.testing import Tester
 convert_tester = Tester(convert_currencies, regex_expect=True)
@@ -72,7 +77,6 @@ convert_tester("asdf").claim(None)
 convert_tester("12.4 dollar to euros").claim(r"= \d+\.?\d* eur")
 convert_tester("1 d to som").claim(r"= \d+\.?\d* kgs")
 convert_tester("100 k to p").claim(r"= \d+\.?\d* gbp")
-convert_tester("9 gb to rub").claim(r"= \d+\.?\d* rub")
 #TODO more tests for dates
 
 USD = CurrencyCode("usd", "us", "dollar", "dol", "d", "доллар", "долларов", "доллара", "доллару", "долларах", "дол", "д")

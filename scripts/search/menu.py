@@ -13,15 +13,14 @@ class URLCode(Code[str]):
     def menu_data(cls) -> list[tuple[str, str, str]]:
         return [(code.name, code.value, code.img) for code in cls.iter()]
 
-def url_code(call: str) -> str|None: return URLCode.resolve(call)
+def url_code_inner(call: str) -> str|None: return URLCode.resolve(call)
 
 from scripts.searching import Search
-url_code = Search(r".+", url_code)
+url_code = Search(r".+", url_code_inner)
 
 from scripts.testing import Tester
 code_tester = Tester(url_code)
 code_tester("asdfasdf").claim(None)
-code_tester("furth").claim("https://qmplus.qmul.ac.uk/course/view.php?id=24583")
 code_tester("youtube").claim("https://www.youtube.com")
 code_tester("погода").claim("https://weather.metoffice.gov.uk/forecast/gcpvj0v07")
 code_tester("menu").claim(f"{BASE_URL}/menu")

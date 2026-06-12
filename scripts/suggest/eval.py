@@ -34,14 +34,12 @@ def globs():
 def normalize_eval(query: str) -> str:
     return query.replace("^", "**").replace("->", ":")
 
-def refresh_eval(call: str) -> str:
+def refresh_eval_inner(call: str) -> str:
     prev = eval_strs.data
     eval_strs.refresh()
-    if cool_eval("None=").startswith("= "): return "Variables refreshed!"
-    eval_strs._data = prev
-    return "There was a problem with Variables!"
+    return "Variables refreshed!"
 
-def search_eval(call: str, query: str) -> list[str]:
+def search_eval_inner(call: str, query: str) -> list[str]|str:
     ans = []
     if not regex.match(r"^\/.*\/$", query): mm = lambda match: query in match
     else: mm = lambda match:regex.search(query[1:-1], match)
@@ -52,7 +50,7 @@ def search_eval(call: str, query: str) -> list[str]:
         if mm(match): ans.append(f"= {match}")
     return ans or "No variables found!"
 
-def cool_eval(call: str, query: str, variable: str=None, value: str=None, normalize=True) -> str:
+def cool_eval_inner(call: str, query: str, variable: str|None=None, value: str|None=None, normalize=True) -> str:
     query = normalize_eval(query)
     if value:
         value = normalize_eval(value)
@@ -60,18 +58,18 @@ def cool_eval(call: str, query: str, variable: str=None, value: str=None, normal
         except: pass
     try: return f"= {eval(query, globals=globs())}"
     except: pass
-    normalized = symppy_eval(call+"=")
+    normalized = symppy_eval_inner(call, query)
     if not normalize or normalized == "not computable": return normalized
     return f"= {eval(normalized[3:], globals=globs())}"
-def symppy_eval(call: str, query: str) -> str:
+def symppy_eval_inner(call: str, query: str) -> str:
     query = normalize_eval(query)
     try: exp = parse_expr(query, transformations=standard_transformations + (implicit_multiplication,))
     except: return "not computable"
     return f"== {exp}"
 
-def add_line(call: str, query: str, variable: str=None, value: str=None) -> str:
+def add_line_inner(call: str, query: str, variable: str|None=None, value: str|None=None) -> str:
     query = normalize_eval(query)
-    if not cool_eval(call.replace("===", "=")).startswith("= "): return "Adding line failed!"
+    if not cool_eval_inner(call, query).startswith("= "): return "Adding line failed!"
     def persist(line: str) -> bool:
         match = regex.match(f"^{assignment_re}$", line) or regex.match(r"^(?P<variable>\w+)[.[].+$", line)
         return match is None or match.group("variable") != variable
@@ -82,11 +80,11 @@ def add_line(call: str, query: str, variable: str=None, value: str=None) -> str:
 
 assignment_re = r"(?P<variable>.*?[^!=><])=(?P<value>[^=].*)"
 from scripts.suggestion import Suggest
-refresh_eval = Suggest(r"==r", refresh_eval)
-search_eval = Suggest(r"(?P<query>.+)=\?", search_eval, page=True)
-cool_eval = Suggest(fr"(==? )?(?P<query>({assignment_re})|.+)=", cool_eval)
-symppy_eval = Suggest(r"(==? )?(?P<query>.+)==", symppy_eval)
-add_line = Suggest(fr"(==? )?(?P<query>({assignment_re})|.+)===", add_line)
+refresh_eval = Suggest(r"==r", refresh_eval_inner)
+search_eval = Suggest(r"(?P<query>.+)=\?", search_eval_inner, page=True)
+cool_eval = Suggest(fr"(==? )?(?P<query>({assignment_re})|.+)=", cool_eval_inner)
+symppy_eval = Suggest(r"(==? )?(?P<query>.+)==", symppy_eval_inner)
+add_line = Suggest(fr"(==? )?(?P<query>({assignment_re})|.+)===", add_line_inner)
 
 from scripts.testing import Tester
 refresh_tester = Tester(refresh_eval)

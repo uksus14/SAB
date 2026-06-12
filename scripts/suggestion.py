@@ -6,10 +6,10 @@ from datetime import timedelta
 import requests
 
 class Suggest(Action[list[str]|str|None]):
-    order = None
+    order = ...
     _list = []
     DEFAULT_CACHE_TIME = timedelta(days=1)
-    def __init__(self, pattern: str, action: Callable[[str, *Tuple[str, ...]], list[str]|str|None], *, cache: bool|timedelta=False, page: bool=False, limit: bool|Callable[[Callable], AccessLimiter]=False):
+    def __init__(self, pattern: str, action: Callable[..., list[str]|str|None], *, cache: bool|timedelta=False, page: bool=False, limit: bool|Callable[[Callable, str], AccessLimiter]=False):
         super().__init__(action, pattern=pattern, cache=cache, limit=limit)
         self.page = page
         if self.page:
@@ -25,4 +25,6 @@ class Suggest(Action[list[str]|str|None]):
     def __call__(self, call, *args, **kwargs):
         return super().__call__(call, *args, **kwargs)
     def __repr__(self) -> str:
-        return f"Suggest(r\"{self.pattern}\", {self.funcname}, cache={self.cache and approx_time(self.cache)}, page={self.page})"
+        cache = self.cache
+        cache = cache if isinstance(cache, bool) else approx_time(cache)
+        return f"Suggest(r\"{self.pattern}\", {self.funcname}, cache={cache}, page={self.page})"

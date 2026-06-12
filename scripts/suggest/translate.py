@@ -9,7 +9,7 @@ asyncio.set_event_loop(loop)
 russian = "йцукенгшщзхъфывапролджэячсмитьбю"
 english = "qwertyuiopasdfghjklzxcvbnm"
 
-def translate(call: str, query: str) -> list[str]:
+def translate_inner(call: str, query: str) -> list[str]|str:
     query = query.rstrip("-").strip()
     langs = ['en', 'ru']
     is_ru = next((letter for letter in query.lower() if letter in russian+english), ' ') in russian
@@ -18,7 +18,7 @@ def translate(call: str, query: str) -> list[str]:
 
 from scripts.suggestion import Suggest
 from datetime import timedelta
-translate = Suggest(r"(?P<query>.+) (!t|пере(вод)?)", translate, cache=timedelta(minutes=5))
+translate = Suggest(r"(?P<query>.+) (!t|пере(вод)?)", translate_inner, cache=timedelta(minutes=5))
 
 from scripts.testing import Tester
 translate_tester = Tester(translate)
