@@ -53,9 +53,8 @@ class Action[AR]:
     def resolve(cls, call) -> AR|str|None:
         for action in cls._list:
             res = action(call)
-            print(res)
             if res is not None: return res
-        return first_not_none(action(call) for action in cls._list)
+        return None
     @classmethod
     def get(cls, funcname: str) -> Self|None:
         return next((action for action in cls._list if action.funcname == funcname), None)
