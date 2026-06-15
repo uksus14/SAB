@@ -1,8 +1,8 @@
 from scripts.decorators import Pager, AccessLimiter
 from scripts.utils import approx_time, page_size
-from typing import Callable, Tuple
 from scripts.actions import Action
 from datetime import timedelta
+from typing import Callable
 import requests
 
 class Suggest(Action[list[str]|str|None]):

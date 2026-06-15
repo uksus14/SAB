@@ -1,10 +1,10 @@
 from scripts.utils import approx_time, match_url
 from variables import HistoryVar, HistoryEntry
-from typing import Callable, Tuple, Iterator
 from scripts.decorators import AccessLimiter
 from flask.typing import ResponseReturnValue
 from flask import render_template, redirect
 from datetime import datetime, timedelta
+from typing import Callable, Iterator
 from scripts.actions import Action
 from commons import BASE_URL
 

@@ -1,9 +1,8 @@
 from __future__ import annotations
-from scripts.utils import approx_time, first_not_none
 from scripts.decorators import Cacher, AccessLimiter
-from flask.typing import ResponseReturnValue
 from scripts.decorators import coerce_types
 from scripts.message import MessageList
+from scripts.utils import approx_time
 from typing import Callable, Self
 from commons import BASE_FOLDER
 from types import EllipsisType
@@ -53,9 +52,8 @@ class Action[AR]:
     def resolve(cls, call) -> AR|str|None:
         for action in cls._list:
             res = action(call)
-            print(res)
             if res is not None: return res
-        return first_not_none(action(call) for action in cls._list)
+        return None
     @classmethod
     def get(cls, funcname: str) -> Self|None:
         return next((action for action in cls._list if action.funcname == funcname), None)

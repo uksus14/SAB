@@ -1,6 +1,6 @@
 from scripts.utils import approx_time, approx_time_re
-from scripts.message import MessageList
 from datetime import datetime, timedelta
+from scripts.message import MessageList
 from variables import AccessVar
 from typing import Callable
 from bisect import bisect

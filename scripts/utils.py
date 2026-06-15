@@ -1,6 +1,5 @@
 from constants import top_level_domains
 from datetime import datetime, timedelta
-from commons import BASE_URL
 from typing import Iterator
 import user_agent_parser
 import flask
