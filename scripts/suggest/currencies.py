@@ -35,7 +35,7 @@ def get_current_kgs() -> float:
 
 def update_kgs(usd_to_kgs: USD2KGSVar):
     now = datetime.now()
-    if (now - usd_to_kgs.data[-1]["time"]).days:
+    if len(usd_to_kgs.data) == 0 or (now - usd_to_kgs.data[-1]["time"]).days:
         usd_to_kgs.append({"time": now, "rate": get_current_kgs()})
 
 usd_to_kgs = USD2KGSVar.create("usd_to_kgs", update=update_kgs)
